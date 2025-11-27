@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { geminiService } from '../services/geminiService';
 import { BacktestResultItem } from '../types';
-import { EmptyState, LoadingState, SkeletonCard } from './ui';
+import { EmptyState, LoadingState, SkeletonCard, MiniTrendChart } from './ui';
 import { AlertCircle, PlayCircle, Plus, Trash2, CheckCircle, XCircle, TrendingUp, Users, Database } from 'lucide-react';
 
 export const BacktestView: React.FC = () => {
@@ -88,7 +88,28 @@ export const BacktestView: React.FC = () => {
     };
   };
 
+  const calculateTrendData = () => {
+    if (results.length === 0) return [];
+
+    const trendPoints = [];
+    let correctCount = 0;
+
+    for (let i = 0; i < results.length; i++) {
+      if (results[i].isCorrect) correctCount++;
+      const accuracy = Math.round((correctCount / (i + 1)) * 100);
+      
+      trendPoints.push({
+        name: `${i + 1}`,
+        value: accuracy,
+        label: `${correctCount}/${i + 1}`
+      });
+    }
+
+    return trendPoints;
+  };
+
   const stats = calculateStats();
+  const trendData = calculateTrendData();
 
   return (
     <div className="animate-fade-in space-y-8 max-w-4xl mx-auto">
@@ -233,23 +254,40 @@ export const BacktestView: React.FC = () => {
 
       {stats && (
         <div className="space-y-6">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-3 gap-4">
-             <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center">
-                <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Matches Analyzed</div>
-                <div className="text-2xl font-bold text-white">{stats.total}</div>
-             </div>
-             <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center">
-                <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Correct Picks</div>
-                <div className="text-2xl font-bold text-emerald-400">{stats.correct}</div>
-             </div>
-             <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center">
-                <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Model Accuracy</div>
-                <div className="text-2xl font-bold text-blue-400">{stats.accuracy}%</div>
-             </div>
-          </div>
+           {/* Summary Cards */}
+           <div className="grid grid-cols-3 gap-4">
+              <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center">
+                 <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Matches Analyzed</div>
+                 <div className="text-2xl font-bold text-white">{stats.total}</div>
+              </div>
+              <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center">
+                 <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Correct Picks</div>
+                 <div className="text-2xl font-bold text-emerald-400">{stats.correct}</div>
+              </div>
+              <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 text-center">
+                 <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Model Accuracy</div>
+                 <div className="text-2xl font-bold text-blue-400">{stats.accuracy}%</div>
+              </div>
+           </div>
 
-          {/* List */}
+           {/* Accuracy Trend Chart */}
+           {trendData.length > 0 && (
+             <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+               <div className="flex items-center gap-2 mb-4">
+                 <TrendingUp size={18} className="text-emerald-400" />
+                 <span className="text-lg font-semibold text-white">Rolling Accuracy</span>
+               </div>
+               <MiniTrendChart
+                 data={trendData}
+                 variant="area"
+                 height={150}
+                 color="#10b981"
+                 label="Accuracy"
+               />
+             </div>
+           )}
+
+           {/* List */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
              <table className="w-full text-left text-sm">
                 <thead className="bg-slate-900/50 text-slate-400 uppercase text-xs">
@@ -291,9 +329,9 @@ export const BacktestView: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                          {item.isCorrect ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400 text-xs font-bold"><CheckCircle size={14}/> Correct</span>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"><CheckCircle size={14}/> Correct</span>
                          ) : (
-                            <span className="inline-flex items-center gap-1 text-red-400 text-xs font-bold"><XCircle size={14}/> Incorrect</span>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20"><XCircle size={14}/> Incorrect</span>
                          )}
                       </td>
                     </tr>

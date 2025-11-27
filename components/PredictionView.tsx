@@ -2,9 +2,9 @@
 import React from 'react';
 import { Match, PredictionResult } from '../types';
 import { ProbabilityChart } from './ProbabilityChart';
-import { LoadingState, SkeletonCard } from './ui';
+import { LoadingState, SkeletonCard, ConfidenceMeter } from './ui';
 import { 
-  ArrowLeft, ExternalLink, Info, AlertTriangle, CheckCircle2, TrendingUp 
+  ArrowLeft, ExternalLink, Info, AlertTriangle, CheckCircle2, TrendingUp, Zap, Shield, Eye
 } from 'lucide-react';
 
 interface PredictionViewProps {
@@ -76,68 +76,105 @@ export const PredictionView: React.FC<PredictionViewProps> = ({
 
       {/* Prediction Content */}
       {!isLoading && !error && prediction && (
-        <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column: Stats & Chart */}
-            <div className="lg:col-span-1 space-y-6">
-                <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <Info size={18} className="text-emerald-400" />
-                        AI Probability
-                    </h3>
-                    <ProbabilityChart probabilities={prediction.probabilities} />
+        <div className="animate-fade-in space-y-6">
+            {/* Confidence & Signals Band */}
+            <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 border border-slate-700 shadow-lg">
+                <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
+                    <Shield size={20} className="text-emerald-400" />
+                    Confidence & Signals
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    {/* Confidence Meter */}
+                    <div className="flex justify-center">
+                        <ConfidenceMeter 
+                            level="High"
+                            variant="radial"
+                            size="md"
+                            showLabel={true}
+                            showIcon={true}
+                        />
+                    </div>
+                    
+                    {/* Probability Chart */}
+                    <div className="md:col-span-3">
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Match Outcome Probabilities</div>
+                        <ProbabilityChart probabilities={prediction.probabilities} />
+                    </div>
                 </div>
 
-                <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                    <h3 className="text-lg font-semibold text-white mb-4">Key Factors</h3>
-                    <ul className="space-y-3">
-                        {prediction.keyFactors.map((factor, idx) => (
-                            <li key={idx} className="flex items-start gap-3 text-sm text-slate-300">
-                                <CheckCircle2 size={16} className="text-emerald-500 mt-1 shrink-0" />
-                                <span>{factor}</span>
-                            </li>
-                        ))}
-                    </ul>
+                {/* Signal Indicators */}
+                <div className="mt-6 pt-6 border-t border-slate-700">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">AI Signals</div>
+                    <div className="flex flex-wrap gap-3">
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-medium">
+                            <Eye size={14} /> High Confidence
+                        </div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-medium">
+                            <Zap size={14} /> Clear Trend
+                        </div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-medium">
+                            <Info size={14} /> Key Factors Available
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Right Column: Analysis */}
-            <div className="lg:col-span-2 space-y-6">
-                <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                    <h3 className="text-lg font-semibold text-white mb-4">Executive Summary</h3>
-                    <p className="text-slate-300 leading-relaxed text-lg">
-                        {prediction.summary}
-                    </p>
-                </div>
-
-                <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                    <h3 className="text-lg font-semibold text-white mb-4">Detailed Analysis</h3>
-                    <div className="prose prose-invert prose-sm max-w-none text-slate-400">
-                        {prediction.detailedAnalysis.split('\n').map((paragraph, idx) => (
-                            <p key={idx} className="mb-4 last:mb-0">{paragraph}</p>
-                        ))}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Left Column: Key Factors */}
+                <div className="lg:col-span-1">
+                    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                        <h3 className="text-lg font-semibold text-white mb-4">Key Factors</h3>
+                        <ul className="space-y-3">
+                            {prediction.keyFactors.map((factor, idx) => (
+                                <li key={idx} className="flex items-start gap-3 text-sm text-slate-300">
+                                    <CheckCircle2 size={16} className="text-emerald-500 mt-1 shrink-0" />
+                                    <span>{factor}</span>
+                                </li>
+                            ))}
+                        </ul>
                     </div>
                 </div>
 
-                {/* Sources */}
-                {prediction.sources.length > 0 && (
-                    <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-800">
-                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Sources & References</h4>
-                        <div className="flex flex-wrap gap-2">
-                            {prediction.sources.map((source, idx) => (
-                                <a 
-                                    key={idx} 
-                                    href={source.uri}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-xs text-slate-400 hover:text-emerald-400 transition-colors border border-slate-700"
-                                >
-                                    {source.title.length > 30 ? source.title.substring(0, 30) + '...' : source.title}
-                                    <ExternalLink size={10} />
-                                </a>
+                {/* Right Column: Analysis */}
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                        <h3 className="text-lg font-semibold text-white mb-4">Executive Summary</h3>
+                        <p className="text-slate-300 leading-relaxed text-lg">
+                            {prediction.summary}
+                        </p>
+                    </div>
+
+                    <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                        <h3 className="text-lg font-semibold text-white mb-4">Detailed Analysis</h3>
+                        <div className="prose prose-invert prose-sm max-w-none text-slate-400">
+                            {prediction.detailedAnalysis.split('\n').map((paragraph, idx) => (
+                                <p key={idx} className="mb-4 last:mb-0">{paragraph}</p>
                             ))}
                         </div>
                     </div>
-                )}
+
+                    {/* Sources */}
+                    {prediction.sources.length > 0 && (
+                        <div className="bg-slate-900/50 rounded-xl p-6 border border-slate-800">
+                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Sources & References</h4>
+                            <div className="flex flex-wrap gap-2">
+                                {prediction.sources.map((source, idx) => (
+                                    <a 
+                                        key={idx} 
+                                        href={source.uri}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-md text-xs text-slate-400 hover:text-emerald-400 transition-colors border border-slate-700"
+                                    >
+                                        {source.title.length > 30 ? source.title.substring(0, 30) + '...' : source.title}
+                                        <ExternalLink size={10} />
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
       )}
