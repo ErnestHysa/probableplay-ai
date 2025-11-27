@@ -3,10 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { HistoryItem } from '../types';
 import { historyService } from '../services/historyService';
 import { geminiService } from '../services/geminiService';
+import { EmptyState, SkeletonCard } from './ui';
 import { 
   RefreshCw, CheckCircle, XCircle, MinusCircle, Clock, 
   ChevronDown, ChevronUp, Trophy, FileText, User, Goal,
-  GitCompare, ArrowRight, Trash2
+  GitCompare, ArrowRight, Trash2, BarChart3
 } from 'lucide-react';
 
 export const HistoryView: React.FC = () => {
@@ -276,11 +277,12 @@ export const HistoryView: React.FC = () => {
       </div>
 
       {history.length === 0 ? (
-        <div className="text-center py-20 bg-slate-800/30 rounded-xl border border-slate-800">
-          <Clock size={48} className="mx-auto text-slate-600 mb-4" />
-          <p className="text-slate-400 text-lg">No prediction history yet.</p>
-          <p className="text-slate-600 text-sm mt-2">Generate predictions in the Dashboard or Detailed Forecast tabs.</p>
-        </div>
+        <EmptyState 
+          icon={BarChart3}
+          title="No prediction history yet"
+          message="Generate predictions in the Dashboard or Detailed Forecast tabs to start building your history and track AI accuracy."
+          size="lg"
+        />
       ) : (
         <div className="space-y-4">
           {history.map((item) => {

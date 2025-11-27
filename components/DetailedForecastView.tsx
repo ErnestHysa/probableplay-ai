@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Match, DetailedForecastResult } from '../types';
+import { LoadingState } from './ui';
 import { 
   ArrowLeft, Target, Clock, AlertTriangle, Shield, Footprints, Flame, Goal, CircleDot, User
 } from 'lucide-react';
@@ -69,13 +70,12 @@ export const DetailedForecastView: React.FC<DetailedForecastViewProps> = ({
       </div>
 
       {isLoading && (
-        <div className="bg-slate-800/50 rounded-2xl p-12 text-center border border-slate-700 border-dashed">
-            <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-            <h3 className="text-xl font-semibold text-white mb-2">Analyzing Scoring Vectors...</h3>
-            <p className="text-slate-400 max-w-md mx-auto">
-                Calculating exact scorelines, identifying goalscorers, and evaluating set-piece probabilities.
-            </p>
-        </div>
+        <LoadingState 
+          icon={Target}
+          title="Analyzing Scoring Vectors..."
+          message="Calculating exact scorelines, identifying goalscorers, and evaluating set-piece probabilities."
+          size="lg"
+        />
       )}
 
       {!isLoading && error && (
@@ -176,7 +176,8 @@ export const DetailedForecastView: React.FC<DetailedForecastViewProps> = ({
                     </h3>
                     <div className="space-y-4">
                          {Object.entries(forecast.scoringMethodProbabilities).map(([method, prob]) => {
-                             const percentage = parsePercentage(prob);
+                             const probStr = String(prob);
+                             const percentage = parsePercentage(probStr);
                              return (
                                  <div key={method} className="flex items-center justify-between">
                                      <span className="text-slate-400 capitalize text-sm">{method.replace(/([A-Z])/g, ' $1').trim()}</span>
@@ -187,7 +188,7 @@ export const DetailedForecastView: React.FC<DetailedForecastViewProps> = ({
                                                 style={{ width: `${percentage}%` }}
                                              />
                                          </div>
-                                         <span className="text-xs font-mono w-12 text-right text-slate-300">{prob}</span>
+                                         <span className="text-xs font-mono w-12 text-right text-slate-300">{probStr}</span>
                                      </div>
                                  </div>
                              );
