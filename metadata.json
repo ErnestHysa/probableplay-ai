@@ -1,0 +1,5 @@
+{
+  "name": "ProbablePlay AI",
+  "description": "An AI-powered sports prediction dashboard using Gemini with Google Search Grounding to provide real-time match analysis and probabilities.",
+  "requestFramePermissions": []
+}
