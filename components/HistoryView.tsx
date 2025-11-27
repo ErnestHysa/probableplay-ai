@@ -3,11 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { HistoryItem } from '../types';
 import { historyService } from '../services/historyService';
 import { geminiService } from '../services/geminiService';
-import { EmptyState, SkeletonCard } from './ui';
+import { EmptyState, SkeletonCard, MiniTrendChart } from './ui';
 import { 
   RefreshCw, CheckCircle, XCircle, MinusCircle, Clock, 
   ChevronDown, ChevronUp, Trophy, FileText, User, Goal,
-  GitCompare, ArrowRight, Trash2, BarChart3
+  GitCompare, ArrowRight, Trash2, BarChart3, TrendingUp
 } from 'lucide-react';
 
 export const HistoryView: React.FC = () => {
@@ -127,6 +127,51 @@ export const HistoryView: React.FC = () => {
     );
   };
 
+  const calculateTrendData = () => {
+    if (history.length === 0) return [];
+    
+    const resultsWithOutcome = history.filter(h => h.result);
+    if (resultsWithOutcome.length === 0) return [];
+
+    const trendPoints = [];
+    let correctCount = 0;
+
+    for (let i = 0; i < resultsWithOutcome.length; i++) {
+      const item = resultsWithOutcome[i];
+      let isCorrect = false;
+      
+      if (item.type === 'STANDARD' && item.standardPrediction) {
+        const { homeWin, awayWin, draw } = item.standardPrediction.probabilities;
+        const { winner } = item.result!;
+        let pick = 'Draw';
+        let maxProb = draw;
+        if (homeWin > maxProb) { pick = 'Home'; maxProb = homeWin; }
+        if (awayWin > maxProb) { pick = 'Away'; maxProb = awayWin; }
+        isCorrect = pick === winner;
+      } else if (item.type === 'DETAILED' && item.detailedForecast) {
+        const { predictedScore } = item.detailedForecast;
+        const [pHome, pAway] = predictedScore.split('-').map(Number);
+        let predictedWinner = 'Draw';
+        if (!isNaN(pHome) && !isNaN(pAway)) {
+          if (pHome > pAway) predictedWinner = 'Home';
+          if (pAway > pHome) predictedWinner = 'Away';
+        }
+        isCorrect = predictedWinner === item.result!.winner;
+      }
+
+      if (isCorrect) correctCount++;
+      const accuracy = Math.round((correctCount / (i + 1)) * 100);
+      
+      trendPoints.push({
+        name: `#${i + 1}`,
+        value: accuracy,
+        label: `${correctCount}/${i + 1}`
+      });
+    }
+
+    return trendPoints;
+  };
+
   // --- Comparison Logic ---
   const renderComparisonModal = () => {
       const item1 = history.find(h => h.id === selectedIds[0]);
@@ -220,17 +265,20 @@ export const HistoryView: React.FC = () => {
       );
   };
 
+  const trendData = calculateTrendData();
+
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
       {showComparisonModal && renderComparisonModal()}
 
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
-        <div>
-          <h2 className="text-2xl font-bold text-white mb-1">Prediction History</h2>
-          <p className="text-slate-400 text-sm">Review, track, and compare your AI forecasts.</p>
-        </div>
-        
-        <div className="flex gap-2">
+      <div className="space-y-4 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+        <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+          <div className="flex-1">
+            <h2 className="text-2xl font-bold text-white mb-1">Prediction History</h2>
+            <p className="text-slate-400 text-sm">Review, track, and compare your AI forecasts.</p>
+          </div>
+          
+          <div className="flex gap-2">
             {!isCompareMode ? (
                 <>
                     <button
@@ -273,10 +321,28 @@ export const HistoryView: React.FC = () => {
                     </button>
                 </>
             )}
-        </div>
-      </div>
+          </div>
 
-      {history.length === 0 ? (
+          {/* Accuracy Trend Chart */}
+          {trendData.length > 0 && (
+            <div className="pt-4 border-t border-slate-700">
+              <div className="flex items-center gap-2 mb-3">
+                <TrendingUp size={16} className="text-emerald-400" />
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Rolling Accuracy</span>
+              </div>
+              <MiniTrendChart
+                data={trendData}
+                variant="area"
+                height={120}
+                color="#10b981"
+                label="Accuracy"
+              />
+            </div>
+          )}
+          </div>
+          </div>
+
+          {history.length === 0 ? (
         <EmptyState 
           icon={BarChart3}
           title="No prediction history yet"
