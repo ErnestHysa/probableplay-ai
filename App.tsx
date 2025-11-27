@@ -7,7 +7,8 @@ import { DetailedForecastView } from './components/DetailedForecastView';
 import { HistoryView } from './components/HistoryView';
 import { BacktestView } from './components/BacktestView';
 import { Filters } from './components/Filters';
-import { Match, PredictionResult, ViewState, SportFilter, DetailedForecastResult, ExtendedFilters } from './types';
+import { DashboardSummary } from './components/dashboard/DashboardSummary';
+import { Match, PredictionResult, ViewState, SportFilter, DetailedForecastResult, ExtendedFilters, AISnapshot } from './types';
 import { geminiService } from './services/geminiService';
 import { historyService } from './services/historyService';
 import { PLACEHOLDER_MATCHES } from './constants';
@@ -38,6 +39,12 @@ export const App: React.FC = () => {
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictionError, setPredictionError] = useState<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState(true);
+  const [aiSnapshot, setAiSnapshot] = useState<AISnapshot>({
+    latestPrediction: null,
+    accuracy: 0,
+    totalPredictions: 0,
+    trendData: []
+  });
 
   useEffect(() => {
     if (!geminiService.isConfigured) {
@@ -46,6 +53,71 @@ export const App: React.FC = () => {
     } else {
       initializeMatches();
     }
+  }, []);
+
+  const generateAISnapshot = (): AISnapshot => {
+    const history = historyService.getHistory();
+    
+    if (history.length === 0) {
+      return {
+        latestPrediction: null,
+        accuracy: 0,
+        totalPredictions: 0,
+        trendData: []
+      };
+    }
+
+    // Get latest standard prediction
+    const latestStandard = history.find(item => item.type === 'STANDARD' && item.standardPrediction);
+    const latestPrediction = latestStandard?.standardPrediction || null;
+
+    // Calculate accuracy
+    const finishedItems = history.filter(item => item.result?.isFinished);
+    const correctItems = finishedItems.filter(item => {
+      if (!item.standardPrediction) return false;
+      
+      const pred = item.standardPrediction.probabilities;
+      const predictedWinner = pred.homeWin > pred.awayWin && pred.homeWin > pred.draw ? 'Home' :
+                              pred.awayWin > pred.homeWin && pred.awayWin > pred.draw ? 'Away' : 'Draw';
+      
+      return predictedWinner === item.result?.winner;
+    });
+    
+    const accuracy = finishedItems.length > 0 ? Math.round((correctItems.length / finishedItems.length) * 100) : 0;
+
+    // Calculate trend data (last 10 predictions)
+    const recentHistory = history.slice(0, 10).reverse();
+    const trendData = recentHistory.map((item, index) => {
+      const predictionsSoFar = recentHistory.slice(0, index + 1);
+      const finishedSoFar = predictionsSoFar.filter(p => p.result?.isFinished);
+      const correctSoFar = finishedSoFar.filter(p => {
+        if (!p.standardPrediction) return false;
+        
+        const pred = p.standardPrediction.probabilities;
+        const predictedWinner = pred.homeWin > pred.awayWin && pred.homeWin > pred.draw ? 'Home' :
+                                pred.awayWin > pred.homeWin && pred.awayWin > pred.draw ? 'Away' : 'Draw';
+        
+        return predictedWinner === p.result?.winner;
+      });
+      
+      return {
+        name: `P${index + 1}`,
+        value: finishedSoFar.length > 0 ? Math.round((correctSoFar.length / finishedSoFar.length) * 100) : 0,
+        label: `Prediction ${index + 1}`
+      };
+    });
+
+    return {
+      latestPrediction,
+      accuracy,
+      totalPredictions: history.length,
+      trendData
+    };
+  };
+
+  useEffect(() => {
+    // Generate AI snapshot on mount
+    setAiSnapshot(generateAISnapshot());
   }, []);
 
   const initializeMatches = () => {
@@ -105,6 +177,9 @@ export const App: React.FC = () => {
       setPrediction(result);
       // Save as Standard type
       historyService.savePrediction(match, result, 'STANDARD');
+
+      // Update AI snapshot
+      setAiSnapshot(generateAISnapshot());
       
     } catch (err: any) {
       console.error(err);
@@ -129,6 +204,9 @@ export const App: React.FC = () => {
       setDetailedForecast(result);
       // Save as Detailed type
       historyService.savePrediction(match, result, 'DETAILED');
+
+      // Update AI snapshot
+      setAiSnapshot(generateAISnapshot());
       
     } catch (err: any) {
       console.error(err);
@@ -180,6 +258,8 @@ export const App: React.FC = () => {
             <p className="text-slate-400">Quick AI insights for today's fixtures.</p>
           </div>
           
+          <DashboardSummary matches={matches} />
+          
           <Filters 
             filters={filters}
             onFiltersChange={setFilters}
@@ -188,14 +268,17 @@ export const App: React.FC = () => {
             allMatches={matches}
           />
           
-          <MatchList 
-            matches={matches} 
-            onSelectMatch={handleSelectMatch}
-            isLoading={isLoadingMatches}
-            filters={filters}
-            searchQuery={searchQuery}
-            onRefresh={fetchMatches}
-          />
+          <div id="matches-section">
+            <MatchList 
+              matches={matches} 
+              onSelectMatch={handleSelectMatch}
+              isLoading={isLoadingMatches}
+              filters={filters}
+              searchQuery={searchQuery}
+              onRefresh={fetchMatches}
+              aiSnapshot={aiSnapshot}
+            />
+          </div>
         </>
       )}
 
