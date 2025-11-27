@@ -7,7 +7,7 @@ import { DetailedForecastView } from './components/DetailedForecastView';
 import { HistoryView } from './components/HistoryView';
 import { BacktestView } from './components/BacktestView';
 import { Filters } from './components/Filters';
-import { Match, PredictionResult, ViewState, SportFilter, DetailedForecastResult } from './types';
+import { Match, PredictionResult, ViewState, SportFilter, DetailedForecastResult, ExtendedFilters } from './types';
 import { geminiService } from './services/geminiService';
 import { historyService } from './services/historyService';
 import { PLACEHOLDER_MATCHES } from './constants';
@@ -27,6 +27,11 @@ export const App: React.FC = () => {
   // UI State
   const [activeSport, setActiveSport] = useState<SportFilter>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState<ExtendedFilters>({
+    sport: 'All',
+    status: 'All',
+    confidenceThreshold: 0
+  });
   
   // Async State
   const [isLoadingMatches, setIsLoadingMatches] = useState(false);
@@ -176,17 +181,18 @@ export const App: React.FC = () => {
           </div>
           
           <Filters 
-            activeSport={activeSport}
-            onSportChange={setActiveSport}
+            filters={filters}
+            onFiltersChange={setFilters}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
+            allMatches={matches}
           />
           
           <MatchList 
             matches={matches} 
             onSelectMatch={handleSelectMatch}
             isLoading={isLoadingMatches}
-            filter={activeSport}
+            filters={filters}
             searchQuery={searchQuery}
             onRefresh={fetchMatches}
           />
@@ -216,17 +222,18 @@ export const App: React.FC = () => {
                     </div>
                     
                     <Filters 
-                        activeSport={activeSport}
-                        onSportChange={setActiveSport}
+                        filters={filters}
+                        onFiltersChange={setFilters}
                         searchQuery={searchQuery}
                         onSearchChange={setSearchQuery}
+                        allMatches={matches}
                     />
 
                     <MatchList 
                         matches={matches} 
-                        onSelectMatch={handleSelectDetailedMatch} // Uses separate handler
+                        onSelectMatch={handleSelectDetailedMatch}
                         isLoading={isLoadingMatches}
-                        filter={activeSport}
+                        filters={filters}
                         searchQuery={searchQuery}
                         onRefresh={fetchMatches}
                     />

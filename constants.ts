@@ -13,6 +13,12 @@ export const SUPPORTED_LEAGUES = [
 
 export const SPORTS_TABS: SportFilter[] = ['All', 'Football', 'NBA'];
 
+export const SPORT_ICONS: Record<SportFilter, string> = {
+  'All': 'globe',
+  'Football': 'soccer',
+  'NBA': 'basketball'
+};
+
 export const PLACEHOLDER_MATCHES: Match[] = [
   {
     id: "demo-1",
