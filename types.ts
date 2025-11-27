@@ -128,3 +128,10 @@ export interface BacktestResultItem {
   isCorrect: boolean;
   explanation: string;
 }
+
+export interface AISnapshot {
+  latestPrediction: PredictionResult | null;
+  accuracy: number;
+  totalPredictions: number;
+  trendData: Array<{ name: string; value: number; label?: string }>;
+}
