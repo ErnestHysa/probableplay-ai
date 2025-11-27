@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
-import { Match, SportFilter } from '../types';
+import { Match, SportFilter, ExtendedFilters, MatchStatus } from '../types';
 import { Calendar, ChevronRight, RefreshCw, Clock } from 'lucide-react';
 
 interface MatchListProps {
   matches: Match[];
   onSelectMatch: (match: Match) => void;
   isLoading: boolean;
-  filter: SportFilter;
+  filter?: SportFilter;
+  filters?: ExtendedFilters;
   searchQuery: string;
   onRefresh: () => void;
 }
@@ -16,22 +17,47 @@ export const MatchList: React.FC<MatchListProps> = ({
   onSelectMatch, 
   isLoading, 
   filter, 
+  filters,
   searchQuery,
   onRefresh 
 }) => {
   
   const filteredMatches = useMemo(() => {
     return matches.filter(match => {
-      const matchesSport = filter === 'All' || match.sport.toLowerCase().includes(filter.toLowerCase());
+      const activeFilters = filters || { sport: filter || 'All', status: 'All', confidenceThreshold: 0 };
+      
+      const matchesSport = activeFilters.sport === 'All' || match.sport.toLowerCase().includes(activeFilters.sport.toLowerCase());
+      const matchesStatus = activeFilters.status === 'All' || match.status === activeFilters.status;
+      
       const query = searchQuery.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch = !query ||
         match.homeTeam.toLowerCase().includes(query) || 
         match.awayTeam.toLowerCase().includes(query) || 
         match.league.toLowerCase().includes(query);
       
-      return matchesSport && matchesSearch;
+      let matchesKickoff = true;
+      if (activeFilters.kickoffWindow?.startHour !== undefined || activeFilters.kickoffWindow?.endHour !== undefined) {
+        try {
+          const matchTime = new Date(match.startTime);
+          const hour = matchTime.getHours();
+          const startHour = activeFilters.kickoffWindow?.startHour;
+          const endHour = activeFilters.kickoffWindow?.endHour;
+          
+          if (startHour !== undefined && endHour !== undefined) {
+            matchesKickoff = hour >= startHour && hour < endHour;
+          } else if (startHour !== undefined) {
+            matchesKickoff = hour >= startHour;
+          } else if (endHour !== undefined) {
+            matchesKickoff = hour < endHour;
+          }
+        } catch (e) {
+          matchesKickoff = true;
+        }
+      }
+      
+      return matchesSport && matchesStatus && matchesSearch && matchesKickoff;
     });
-  }, [matches, filter, searchQuery]);
+  }, [matches, filter, filters, searchQuery]);
 
   // Helper to format date nicely
   const formatMatchTime = (isoString: string) => {
