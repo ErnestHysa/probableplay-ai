@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { geminiService } from '../services/geminiService';
 import { BacktestResultItem } from '../types';
-import { AlertCircle, PlayCircle, Plus, Trash2, CheckCircle, XCircle, TrendingUp } from 'lucide-react';
+import { EmptyState, LoadingState, SkeletonCard } from './ui';
+import { AlertCircle, PlayCircle, Plus, Trash2, CheckCircle, XCircle, TrendingUp, Users, Database } from 'lucide-react';
 
 export const BacktestView: React.FC = () => {
   // Form State
@@ -156,11 +157,15 @@ export const BacktestView: React.FC = () => {
               </div>
             </div>
             
-            <div className="bg-slate-900 rounded-lg p-3 min-h-[100px]">
+            <div className="bg-slate-900 rounded-lg p-3 min-h-[100px] flex items-center justify-center">
                {selectedTeams.length === 0 ? (
-                 <span className="text-slate-600 text-sm italic">No teams added yet</span>
+                 <div className="text-center py-4">
+                   <Users size={32} className="mx-auto text-slate-700 mb-2" />
+                   <span className="text-slate-600 text-sm italic block">No teams added yet</span>
+                   <span className="text-slate-700 text-xs block mt-1">Enter team names above and press + to add</span>
+                 </div>
                ) : (
-                 <div className="flex flex-wrap gap-2">
+                 <div className="flex flex-wrap gap-2 w-full">
                    {selectedTeams.map(team => (
                      <span key={team} className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded text-sm">
                        {team}
@@ -206,6 +211,26 @@ export const BacktestView: React.FC = () => {
       </div>
 
       {/* Results Section */}
+      {!isLoading && !stats && results.length === 0 && (
+        <EmptyState 
+          icon={Database}
+          title="No backtest results yet"
+          message="Configure the settings above and run a historical analysis to test AI prediction accuracy on past matches."
+          size="lg"
+        />
+      )}
+
+      {isLoading && results.length === 0 && (
+        <div className="space-y-6">
+          <LoadingState 
+            icon={TrendingUp}
+            title={progress}
+            message="The AI is analyzing each historical match sequentially. This may take a few moments."
+            size="lg"
+          />
+        </div>
+      )}
+
       {stats && (
         <div className="space-y-6">
           {/* Summary Cards */}

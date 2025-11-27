@@ -2,8 +2,9 @@
 import React from 'react';
 import { Match, PredictionResult } from '../types';
 import { ProbabilityChart } from './ProbabilityChart';
+import { LoadingState, SkeletonCard } from './ui';
 import { 
-  ArrowLeft, ExternalLink, Info, AlertTriangle, CheckCircle2 
+  ArrowLeft, ExternalLink, Info, AlertTriangle, CheckCircle2, TrendingUp 
 } from 'lucide-react';
 
 interface PredictionViewProps {
@@ -56,13 +57,12 @@ export const PredictionView: React.FC<PredictionViewProps> = ({
 
       {/* Loading State */}
       {isLoading && (
-        <div className="bg-slate-800/50 rounded-2xl p-12 text-center border border-slate-700 border-dashed">
-            <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
-            <h3 className="text-xl font-semibold text-white mb-2">Analyzing Match Data...</h3>
-            <p className="text-slate-400 max-w-md mx-auto">
-                Gemini is researching recent form, checking injury reports, and calculating probabilities using live web data.
-            </p>
-        </div>
+        <LoadingState 
+          icon={TrendingUp}
+          title="Analyzing Match Data..."
+          message="Gemini is researching recent form, checking injury reports, and calculating probabilities using live web data."
+          size="lg"
+        />
       )}
 
       {/* Error State */}

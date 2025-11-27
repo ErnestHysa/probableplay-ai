@@ -1,4 +1,7 @@
 import React, { useMemo } from 'react';
+import { Match, SportFilter } from '../types';
+import { Calendar, ChevronRight, RefreshCw, Clock, Search } from 'lucide-react';
+import { LoadingState, EmptyState, SkeletonCard } from './ui';
 import { Match, SportFilter, ExtendedFilters, MatchStatus } from '../types';
 import { Calendar, ChevronRight, RefreshCw, Clock } from 'lucide-react';
 
@@ -86,9 +89,19 @@ export const MatchList: React.FC<MatchListProps> = ({
 
   if (isLoading && matches.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-96 space-y-4">
-        <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-400 animate-pulse">Scouting fixtures from the web...</p>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-slate-100">Today's Fixtures</h2>
+          <button 
+            onClick={onRefresh} 
+            disabled={isLoading}
+            className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition-colors disabled:opacity-50"
+            title="Refresh Fixtures"
+          >
+            <RefreshCw size={18} className={`text-slate-400 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+        <SkeletonCard variant="match" count={6} />
       </div>
     );
   }
@@ -108,11 +121,18 @@ export const MatchList: React.FC<MatchListProps> = ({
       </div>
 
       {filteredMatches.length === 0 ? (
-        <div className="text-center py-20 bg-slate-800/30 rounded-xl border border-slate-800">
-          <Calendar size={48} className="mx-auto text-slate-600 mb-4" />
-          <p className="text-slate-400 text-lg">No matches found matching your filters.</p>
-          <p className="text-slate-600 text-sm mt-2">Try changing the sport or search term.</p>
-        </div>
+        <EmptyState 
+          icon={searchQuery ? Search : Calendar}
+          title={searchQuery ? "No matches found" : "No fixtures available"}
+          message={searchQuery 
+            ? "Try adjusting your search term or changing the sport filter." 
+            : "No matches scheduled for today. Try changing the sport filter or refresh to check for updates."}
+          action={{
+            label: "Refresh Fixtures",
+            onClick: onRefresh,
+            icon: RefreshCw
+          }}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredMatches.map((match) => (
