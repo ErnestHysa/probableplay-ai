@@ -95,6 +95,18 @@ export interface HistoryItem {
 
 export type SportFilter = 'All' | 'Football' | 'NBA';
 
+export type MatchStatus = 'All' | 'Live' | 'Scheduled';
+
+export interface ExtendedFilters {
+  sport: SportFilter;
+  status: MatchStatus;
+  confidenceThreshold: number; // 0-100
+  kickoffWindow?: {
+    startHour?: number;
+    endHour?: number;
+  };
+}
+
 export enum ViewState {
   DASHBOARD = 'DASHBOARD',
   DETAILED_FORECAST = 'DETAILED_FORECAST',

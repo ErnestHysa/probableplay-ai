@@ -11,52 +11,54 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children, onNavigate, currentView }) => {
+  const navItems = [
+    { view: ViewState.DASHBOARD, icon: LayoutDashboard, label: "Today's Fixtures" },
+    { view: ViewState.DETAILED_FORECAST, icon: FileText, label: "Detailed AI Forecast" },
+    { view: ViewState.HISTORY, icon: History, label: "History" },
+    { view: ViewState.BACKTEST, icon: FlaskConical, label: "Backtest Lab" }
+  ];
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-900 text-slate-100">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div 
-            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-0 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
+          {/* Logo */}
+          <button
             onClick={() => onNavigate(ViewState.DASHBOARD)}
+            className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0"
+            aria-label="ProbablePlay AI Home"
           >
-            <div className="bg-emerald-500 p-2 rounded-lg">
-              <Trophy size={20} className="text-white" />
+            <div className="bg-emerald-500 p-1.5 sm:p-2 rounded-lg flex-shrink-0">
+              <Trophy size={18} sm:size={20} className="text-white" />
             </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent">
+            <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent hidden sm:inline">
               ProbablePlay AI
             </h1>
-          </div>
-          
-          <nav className="flex items-center gap-2 md:gap-6 overflow-x-auto no-scrollbar">
-             <button 
-                onClick={() => onNavigate(ViewState.DASHBOARD)}
-                className={`flex items-center gap-2 text-sm font-medium transition-colors whitespace-nowrap px-2 py-1 ${currentView === ViewState.DASHBOARD ? 'text-emerald-400' : 'text-slate-400 hover:text-emerald-400'}`}
-             >
-               <LayoutDashboard size={18} />
-               <span className="hidden sm:inline">Today's Fixtures</span>
-             </button>
-             <button 
-                onClick={() => onNavigate(ViewState.DETAILED_FORECAST)}
-                className={`flex items-center gap-2 text-sm font-medium transition-colors whitespace-nowrap px-2 py-1 ${currentView === ViewState.DETAILED_FORECAST ? 'text-emerald-400' : 'text-slate-400 hover:text-emerald-400'}`}
-             >
-               <FileText size={18} />
-               <span className="hidden sm:inline">Detailed AI Forecast</span>
-             </button>
-             <button 
-                onClick={() => onNavigate(ViewState.HISTORY)}
-                className={`flex items-center gap-2 text-sm font-medium transition-colors whitespace-nowrap px-2 py-1 ${currentView === ViewState.HISTORY ? 'text-emerald-400' : 'text-slate-400 hover:text-emerald-400'}`}
-             >
-               <History size={18} />
-               <span className="hidden sm:inline">History</span>
-             </button>
-             <button 
-                onClick={() => onNavigate(ViewState.BACKTEST)}
-                className={`flex items-center gap-2 text-sm font-medium transition-colors whitespace-nowrap px-2 py-1 ${currentView === ViewState.BACKTEST ? 'text-emerald-400' : 'text-slate-400 hover:text-emerald-400'}`}
-             >
-               <FlaskConical size={18} />
-               <span className="hidden sm:inline">Backtest Lab</span>
-             </button>
+          </button>
+
+          {/* Navigation */}
+          <nav 
+            className="flex items-center gap-1 sm:gap-2 lg:gap-6 overflow-x-auto no-scrollbar flex-1"
+            role="navigation"
+            aria-label="Main navigation"
+          >
+            {navItems.map(({ view, icon: Icon, label }) => (
+              <button
+                key={view}
+                onClick={() => onNavigate(view)}
+                className={`flex items-center gap-1 sm:gap-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap px-2 sm:px-3 py-2 rounded-md ${
+                  currentView === view
+                    ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/30'
+                    : 'text-slate-400 hover:text-emerald-400 hover:bg-slate-700/50'
+                }`}
+                aria-current={currentView === view ? 'page' : undefined}
+                title={label}
+              >
+                <Icon size={16} className="flex-shrink-0" />
+                <span className="hidden lg:inline">{label}</span>
+              </button>
+            ))}
           </nav>
         </div>
       </header>
