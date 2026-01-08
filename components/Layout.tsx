@@ -76,15 +76,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, onNavigate, currentVie
               <span className="hidden sm:inline">Backtest</span>
             </button>
 
-            {isPro && (
-              <button
-                onClick={() => onNavigate(ViewState.STATISTICS)}
-                className={`flex items-center gap-2 text-sm font-medium transition-colors whitespace-nowrap px-2 py-1 rounded-lg ${currentView === ViewState.STATISTICS ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-blue-400 hover:bg-slate-800'}`}
-              >
-                <BarChart3 size={18} />
-                <span className="hidden sm:inline">Statistics</span>
-              </button>
-            )}
+            <button
+              onClick={() => onNavigate(ViewState.STATISTICS)}
+              className={`flex items-center gap-2 text-sm font-medium transition-colors whitespace-nowrap px-2 py-1 rounded-lg ${currentView === ViewState.STATISTICS ? 'text-blue-400 bg-blue-500/10' : 'text-slate-400 hover:text-blue-400 hover:bg-slate-800'}`}
+            >
+              <BarChart3 size={18} />
+              <span className="hidden sm:inline">Statistics</span>
+            </button>
 
             <button
               onClick={() => onNavigate(ViewState.PRICING)}
@@ -132,6 +130,31 @@ export const Layout: React.FC<LayoutProps> = ({ children, onNavigate, currentVie
           </nav>
         </div>
       </header>
+
+      {/* Guest Banner - shown when not authenticated */}
+      {!isAuthenticated && (
+        <div className="sticky top-16 z-40 bg-gradient-to-r from-blue-600 to-orange-500 px-4 py-2 shadow-lg">
+          <div className="max-w-6xl mx-auto flex items-center justify-between">
+            <p className="text-sm text-white font-medium">
+              Browse the app in demo mode. <span className="opacity-90">Sign up for free predictions!</span>
+            </p>
+            <div className="flex items-center gap-3">
+              <Link
+                to="/auth/signin"
+                className="text-sm font-medium text-white/90 hover:text-white transition-colors"
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/auth/signup"
+                className="text-sm font-medium bg-white text-blue-600 px-4 py-1.5 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
+              >
+                Get Started Free
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
