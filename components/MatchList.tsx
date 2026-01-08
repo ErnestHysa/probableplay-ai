@@ -1,7 +1,8 @@
 
 import React, { useMemo, useState } from 'react';
 import { Match, SportFilter } from '../types';
-import { Calendar, ChevronRight, RefreshCw, Clock, Radio, PlayCircle } from 'lucide-react';
+import { Calendar, ChevronRight, RefreshCw, Clock, Radio, PlayCircle, Lock, Sparkles } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface MatchListProps {
   matches: Match[];
@@ -10,19 +11,22 @@ interface MatchListProps {
   filter: SportFilter;
   searchQuery: string;
   onRefresh: () => void;
+  isDemoMode?: boolean;
 }
 
 type TabType = 'ALL' | 'LIVE' | 'UPCOMING';
 
-export const MatchList: React.FC<MatchListProps> = ({ 
-  matches, 
-  onSelectMatch, 
-  isLoading, 
-  filter, 
+export const MatchList: React.FC<MatchListProps> = ({
+  matches,
+  onSelectMatch,
+  isLoading,
+  filter,
   searchQuery,
-  onRefresh 
+  onRefresh,
+  isDemoMode = false
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('ALL');
+  const [showSignupModal, setShowSignupModal] = useState(false);
   
   const filteredMatches = useMemo(() => {
     let filtered = matches.filter(match => {
@@ -82,6 +86,14 @@ export const MatchList: React.FC<MatchListProps> = ({
   };
 
   const liveCount = matches.filter(m => m.status === 'Live').length;
+
+  const handleMatchClick = (match: Match) => {
+    if (isDemoMode) {
+      setShowSignupModal(true);
+    } else {
+      onSelectMatch(match);
+    }
+  };
 
   if (isLoading && matches.length === 0) {
     return (
@@ -150,11 +162,21 @@ export const MatchList: React.FC<MatchListProps> = ({
           {filteredMatches.map((match) => {
             const isLive = match.status === 'Live';
             return (
-                <div 
+                <div
                 key={match.id}
-                onClick={() => onSelectMatch(match)}
-                className={`group bg-slate-800/50 hover:bg-slate-800 border ${isLive ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.15)]' : 'border-slate-700 hover:border-emerald-500/50'} rounded-xl p-5 cursor-pointer transition-all duration-200 relative overflow-hidden`}
+                onClick={() => handleMatchClick(match)}
+                className={`group bg-slate-800/50 hover:bg-slate-800 border ${isLive ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.15)]' : 'border-slate-700 hover:border-emerald-500/50'} rounded-xl p-5 cursor-pointer transition-all duration-200 relative overflow-hidden ${isDemoMode ? 'ring-1 ring-amber-500/30' : ''}`}
                 >
+                {/* Demo Mode Badge */}
+                {isDemoMode && (
+                  <div className="absolute top-2 right-2 z-10">
+                    <span className="px-2 py-1 bg-amber-500/20 text-amber-400 text-xs font-medium rounded-full flex items-center gap-1">
+                      <Lock size={10} />
+                      Demo
+                    </span>
+                  </div>
+                )}
+
                 {/* Hover Glow Effect */}
                 <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-12 -mt-12 opacity-0 group-hover:opacity-100 transition-opacity"></div>
 
@@ -185,11 +207,81 @@ export const MatchList: React.FC<MatchListProps> = ({
                 </div>
 
                 <div className="mt-4 flex items-center text-emerald-500 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                    Get AI Prediction <ChevronRight size={16} className="ml-1" />
+                    {isDemoMode ? (
+                      <>Sign up to unlock <Lock size={14} className="ml-1" /></>
+                    ) : (
+                      <>Get AI Prediction <ChevronRight size={16} className="ml-1" /></>
+                    )}
                 </div>
                 </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Sign Up Modal for Demo Mode */}
+      {showSignupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-800 rounded-2xl max-w-md w-full p-8 border border-slate-700 shadow-2xl animate-in zoom-in duration-200">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h3 className="text-2xl font-bold text-white mb-2">Unlock AI Predictions</h3>
+                <p className="text-slate-400">Sign up to get real AI-powered predictions on live matches</p>
+              </div>
+              <button
+                onClick={() => setShowSignupModal(false)}
+                className="text-slate-500 hover:text-white transition-colors"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                  <Sparkles size={16} className="text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-white font-medium">AI-Powered Predictions</p>
+                  <p className="text-slate-500 text-sm">Get intelligent predictions using Google Gemini AI</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                  <Clock size={16} className="text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-white font-medium">Real-Time Data</p>
+                  <p className="text-slate-500 text-sm">Access live fixtures from major leagues worldwide</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
+                  <Lock size={16} className="text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-white font-medium">Free to Start</p>
+                  <p className="text-slate-500 text-sm">10 free predictions every week</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Link
+                to="/auth/signup"
+                onClick={() => setShowSignupModal(false)}
+                className="w-full block text-center py-3 bg-gradient-to-r from-blue-500 to-orange-500 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-orange-600 transition-all"
+              >
+                Create Free Account
+              </Link>
+              <button
+                onClick={() => setShowSignupModal(false)}
+                className="w-full py-3 text-slate-400 hover:text-white transition-colors"
+              >
+                Maybe Later
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
