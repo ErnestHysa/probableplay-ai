@@ -2,48 +2,83 @@
  * Supabase Client Configuration
  *
  * This file initializes the Supabase client for authentication and database operations.
+ * Falls back to demo mode if credentials are not configured.
  */
 
 import { createClient } from '@supabase/supabase-js';
+import type { User, Session } from '@supabase/supabase-js';
 
 // Get environment variables
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Validate environment variables
-if (!supabaseUrl) {
-  throw new Error(
-    'Missing VITE_SUPABASE_URL. Please add it to your .env.local file.\n' +
-    'Get it from: https://supabase.com/dashboard/project/_/settings/api'
-  );
+// Flag to track if Supabase is configured
+export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
+
+// Mock subscription class for demo mode
+class MockSubscription {
+  unsubscribe = () => {};
 }
 
-if (!supabaseAnonKey) {
-  throw new Error(
-    'Missing VITE_SUPABASE_ANON_KEY. Please add it to your .env.local file.\n' +
-    'Get it from: https://supabase.com/dashboard/project/_/settings/api'
-  );
-}
+// Create a minimal mock client for demo mode
+const createMockClient = () => {
+  console.warn('Supabase not configured. Running in demo mode.');
+
+  return {
+    auth: {
+      getUser: async () => ({ data: { user: null }, error: null }),
+      signInWithPassword: async () => ({ data: { user: null, session: null }, error: new Error('Supabase not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env.local file.') }),
+      signUp: async () => ({ data: { user: null, session: null }, error: new Error('Supabase not configured. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env.local file.') }),
+      signOut: async () => ({ error: null }),
+      getSession: async () => ({ data: { session: null }, error: null }),
+      onAuthStateChange: (_callback: any) => {
+        return { data: { subscription: new MockSubscription() } };
+      },
+    },
+    from: (_table: string) => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => ({ data: null, error: { code: 'PGRST116' } }),
+          update: () => ({
+            eq: () => ({
+              select: () => ({
+                single: async () => ({ data: null, error: { code: 'PGRST116' } }),
+              }),
+            }),
+          }),
+        }),
+      }),
+      insert: async () => ({ error: null }),
+      update: () => ({
+        eq: () => ({
+          select: () => ({
+            single: async () => ({ data: null, error: null }),
+          }),
+        }),
+      }),
+    }),
+    rpc: async () => ({ data: 0, error: null }),
+  };
+};
 
 // Create Supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const realClient = isSupabaseConfigured ? createClient(supabaseUrl!, supabaseAnonKey!, {
   auth: {
-    // Store auth sessions in localStorage
     storage: window.localStorage,
-    // Persist session across page refreshes
     persistSession: true,
-    // Detect when session expires
     detectSessionInUrl: true,
-    // Auto-refresh token before it expires
     autoRefreshToken: true,
   },
-});
+}) : null;
+
+export const supabase = realClient ?? createMockClient();
 
 // Database types are imported from types/database.ts
 export type { Database } from '../types/database';
 
 // Helper function to get current user
-export const getCurrentUser = async () => {
+export const getCurrentUser = async (): Promise<User | null> => {
+  if (!isSupabaseConfigured) return null;
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error) throw error;
   return user;
@@ -51,6 +86,7 @@ export const getCurrentUser = async () => {
 
 // Helper function to get current user's profile
 export const getCurrentProfile = async () => {
+  if (!isSupabaseConfigured) return null;
   const user = await getCurrentUser();
   if (!user) return null;
 
@@ -73,6 +109,7 @@ export const getCurrentProfile = async () => {
 
 // Helper function to check if user is on Pro tier
 export const isProUser = async (): Promise<boolean> => {
+  if (!isSupabaseConfigured) return false;
   const profile = await getCurrentProfile();
   return profile?.subscription_tier === 'pro' &&
          profile?.subscription_status === 'active';
@@ -80,6 +117,7 @@ export const isProUser = async (): Promise<boolean> => {
 
 // Helper function to get weekly usage
 export const getWeeklyUsage = async (action?: string): Promise<number> => {
+  if (!isSupabaseConfigured) return 0;
   const user = await getCurrentUser();
   if (!user) return 0;
 
@@ -88,12 +126,13 @@ export const getWeeklyUsage = async (action?: string): Promise<number> => {
     action_type: action || null,
   });
 
-  if (error) throw error;
+  if (error) return 0;
   return data || 0;
 };
 
 // Helper function to log usage
 export const logUsage = async (action: 'standard_prediction' | 'detailed_prediction' | 'backtest') => {
+  if (!isSupabaseConfigured) return;
   const user = await getCurrentUser();
   if (!user) return;
 
@@ -110,7 +149,7 @@ export const logUsage = async (action: 'standard_prediction' | 'detailed_predict
     week_start: weekStart.toISOString(),
   });
 
-  if (error) throw error;
+  if (error) console.error('Failed to log usage:', error);
 };
 
 export default supabase;

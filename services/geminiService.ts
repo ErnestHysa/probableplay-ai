@@ -1,6 +1,16 @@
 import { GoogleGenAI } from "@google/genai";
 import { Match, PredictionResult, MatchResult, HistoryItem, BacktestResultItem, DetailedForecastResult, League } from "../types";
+import {
+  TheSportsDBEvent,
+  AIProbabilityResponse,
+  AIDetailedForecastResponse,
+  AIBacktestResponse,
+  BacktestMatchData,
+} from "../src/types/api";
 import { validateProbabilities } from "../src/utils/validation";
+
+type JsonObject = Record<string, unknown>;
+type JsonArray = Array<unknown>;
 
 // Helper to get today's date in readable format
 const getTodayString = () => {
@@ -19,21 +29,72 @@ export class GeminiService {
   private ai: GoogleGenAI;
   private apiKey: string;
   private sportsDbKey = "123";
-  
+  private useEdgeFunction: boolean;
+
   // Cache for TheSportsDB events to avoid double fetching
-  private eventsCache: any[] = [];
+  private eventsCache: TheSportsDBEvent[] = [];
   private lastFetchDate: string = "";
+  private abortController: AbortController | null = null;
 
   constructor() {
-    this.apiKey = process.env.API_KEY || '';
+    // In Vite, env vars must start with VITE_ and are accessed via import.meta.env
+    this.apiKey = (import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY) || '';
     this.ai = new GoogleGenAI({ apiKey: this.apiKey });
+    // Use edge function in production if available
+    this.useEdgeFunction = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
   }
 
   get isConfigured() {
     return !!this.apiKey;
   }
 
-  private cleanAndParseJson(text: string): any {
+  /**
+   * Check if we should use the edge function
+   */
+  private shouldUseEdgeFunction(): boolean {
+    return this.useEdgeFunction;
+  }
+
+  /**
+   * Call prediction via edge function (server-side API key)
+   */
+  private async callEdgeFunction(match: Match, type: 'standard' | 'detailed'): Promise<PredictionResult | DetailedForecastResult> {
+    const response = await fetch('/api/predict', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ match, type }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Edge function error');
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Cancel any pending requests
+   */
+  public cancelPendingRequests() {
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+  }
+
+  /**
+   * Create a new abort controller for cancellable requests
+   */
+  private createCancellableRequest() {
+    this.cancelPendingRequests();
+    this.abortController = new AbortController();
+    return this.abortController;
+  }
+
+  private cleanAndParseJson(text: string): JsonObject {
     const tryParse = (str: string) => {
       try {
         return JSON.parse(str);
@@ -97,7 +158,7 @@ export class GeminiService {
     }
 
     // Maps to store merged events (ID -> Event) to handle duplicates between Live and Schedule
-    const eventMap = new Map<string, any>();
+    const eventMap = new Map<string, TheSportsDBEvent>();
 
     // We fetch both Schedule (eventsday) and Live (livescore) in parallel for each sport
     await Promise.all(sportsToFetch.map(async (sport) => {
@@ -243,11 +304,17 @@ export class GeminiService {
   }
 
   /**
-   * Standard Prediction (Overview) - REMAINS AI
+   * Standard Prediction (Overview)
    * Phase 5: Improved prompts + probability validation
+   * Uses edge function in production for API key security
    */
   async predictMatch(match: Match): Promise<PredictionResult> {
     if (!this.isConfigured) throw new Error("API Key missing");
+
+    // Use edge function in production
+    if (this.shouldUseEdgeFunction()) {
+      return this.callEdgeFunction(match, 'standard') as Promise<PredictionResult>;
+    }
 
     const today = getTodayString();
 
@@ -293,7 +360,7 @@ Return ONLY valid JSON:
       const text = response.text;
       if (!text) throw new Error("No response from AI");
 
-      const data = this.cleanAndParseJson(text);
+      const data = this.cleanAndParseJson(text) as AIProbabilityResponse;
 
       // Extract probabilities
       let homeWin = Number(data.homeWinProbability) || 0;
@@ -314,8 +381,8 @@ Return ONLY valid JSON:
       return {
         matchId: match.id,
         probabilities: rawProbabilities,
-        summary: String(data.summary || "Analysis based on team performance patterns."),
-        detailedAnalysis: String(data.detailedAnalysis || "Detailed form analysis and tactical breakdown."),
+        summary: String(data.summary ?? "Analysis based on team performance patterns."),
+        detailedAnalysis: String(data.detailedAnalysis ?? "Detailed form analysis and tactical breakdown."),
         keyFactors: Array.isArray(data.keyFactors) ? data.keyFactors.map(String) : [],
         sources: [],
         lastUpdated: new Date().toISOString()
@@ -328,11 +395,17 @@ Return ONLY valid JSON:
   }
 
   /**
-   * Detailed Forecast (High Precision Mode) - REMAINS AI
+   * Detailed Forecast (High Precision Mode)
    * Phase 5: Improved prompts with consistency checks
+   * Uses edge function in production for API key security
    */
   async getDetailedForecast(match: Match): Promise<DetailedForecastResult> {
     if (!this.isConfigured) throw new Error("API Key missing");
+
+    // Use edge function in production
+    if (this.shouldUseEdgeFunction()) {
+      return this.callEdgeFunction(match, 'detailed') as Promise<DetailedForecastResult>;
+    }
 
     const today = getTodayString();
 
@@ -395,11 +468,11 @@ Return ONLY valid JSON:
       });
 
       const text = response.text;
-      const data = this.cleanAndParseJson(text);
+      const data = this.cleanAndParseJson(text) as AIDetailedForecastResponse;
 
       // Normalize and validate data
-      const predictedScore = String(data.predictedScore || "N/A");
-      const firstTeamToScore = String(data.firstTeamToScore || "Unknown");
+      const predictedScore = String(data.predictedScore ?? "N/A");
+      const firstTeamToScore = String(data.firstTeamToScore ?? "Unknown");
 
       // Consistency check: if 0-0 predicted, ensure no scorers are listed
       let likelyScorers = Array.isArray(data.likelyScorers) ? data.likelyScorers : [];
@@ -408,10 +481,12 @@ Return ONLY valid JSON:
         likelyScorers = [];
       }
 
+      const validMethods = ["Shot", "Header", "Penalty", "Free Kick", "Own Goal"] as const;
+
       return {
         matchId: match.id,
         predictedScore,
-        totalGoals: String(data.totalGoals || "N/A"),
+        totalGoals: String(data.totalGoals ?? "N/A"),
         firstTeamToScore,
         halfTimeWinner: data.halfTimeWinner === "Home" || data.halfTimeWinner === "Draw" || data.halfTimeWinner === "Away"
           ? data.halfTimeWinner
@@ -420,28 +495,28 @@ Return ONLY valid JSON:
           ? data.secondHalfWinner
           : "Draw",
 
-        likelyScorers: likelyScorers.map((s: any) => ({
-          player: String(s.player || "Unknown"),
-          team: String(s.team || match.homeTeam),
-          method: ["Shot", "Header", "Penalty", "Free Kick", "Own Goal"].includes(s.method)
+        likelyScorers: likelyScorers.map((s) => ({
+          player: String(s.player ?? "Unknown"),
+          team: String(s.team ?? match.homeTeam),
+          method: validMethods.includes(s.method as typeof validMethods[number])
             ? s.method
             : "Shot",
-          likelihood: String(s.likelihood || "50%")
+          likelihood: String(s.likelihood ?? "50%")
         })),
 
         scoringMethodProbabilities: {
-          penalty: String(data.scoringMethodProbabilities?.penalty || "0%"),
-          freeKick: String(data.scoringMethodProbabilities?.freeKick || "0%"),
-          cornerHeader: String(data.scoringMethodProbabilities?.cornerHeader || "0%"),
-          ownGoal: String(data.scoringMethodProbabilities?.ownGoal || "0%"),
-          outsideBox: String(data.scoringMethodProbabilities?.outsideBox || "0%")
+          penalty: String(data.scoringMethodProbabilities?.penalty ?? "0%"),
+          freeKick: String(data.scoringMethodProbabilities?.freeKick ?? "0%"),
+          cornerHeader: String(data.scoringMethodProbabilities?.cornerHeader ?? "0%"),
+          ownGoal: String(data.scoringMethodProbabilities?.ownGoal ?? "0%"),
+          outsideBox: String(data.scoringMethodProbabilities?.outsideBox ?? "0%")
         },
 
-        redCards: String(data.redCards || "0 (90%)"),
+        redCards: String(data.redCards ?? "0 (90%)"),
         confidenceScore: data.confidenceScore === "High" || data.confidenceScore === "Medium" || data.confidenceScore === "Low"
           ? data.confidenceScore
           : "Medium",
-        reasoning: String(data.reasoning || "Based on team performance patterns and historical data.")
+        reasoning: String(data.reasoning ?? "Based on team performance patterns and historical data.")
       };
     } catch (error) {
       console.error("Detailed forecast failed:", error);
@@ -502,11 +577,11 @@ Return ONLY valid JSON:
   }
 
   // --- Backtest Methods ---
-  async fetchBacktestCandidates(sport: string, league: string, teams: string[], count: number): Promise<any[]> {
+  async fetchBacktestCandidates(sport: string, league: string, teams: string[], count: number): Promise<BacktestMatchData[]> {
     if (!this.isConfigured) throw new Error("API Key missing");
     const safeCount = Math.min(count, 5);
     const teamStr = teams.join(' OR ');
-    
+
     const prompt = `
       List the last ${safeCount} COMPLETED matches involving ANY of: ${teamStr}.
       Sport: ${sport}, League: ${league}.
@@ -518,12 +593,12 @@ Return ONLY valid JSON:
         model: 'gemini-2.5-flash',
         contents: prompt
       });
-      const data = this.cleanAndParseJson(response.text);
-      return Array.isArray(data) ? data : [];
+      const data = this.cleanAndParseJson(response.text) as JsonArray;
+      return Array.isArray(data) ? data as BacktestMatchData[] : [];
     } catch (e) { return []; }
   }
 
-  async runBacktestPrediction(matchData: any): Promise<BacktestResultItem> {
+  async runBacktestPrediction(matchData: BacktestMatchData): Promise<BacktestResultItem> {
     const matchDate = new Date(matchData.date);
     const simDate = new Date(matchDate);
     simDate.setDate(matchDate.getDate() - 1);
@@ -541,16 +616,21 @@ Return ONLY valid JSON:
         model: 'gemini-2.5-flash',
         contents: prompt
       });
-      const p = this.cleanAndParseJson(response.text);
-      
+      const p = this.cleanAndParseJson(response.text) as AIBacktestResponse;
+
       let actualWinner: 'Home' | 'Draw' | 'Away' = 'Draw';
       if (matchData.homeScore > matchData.awayScore) actualWinner = 'Home';
       if (matchData.awayScore > matchData.homeScore) actualWinner = 'Away';
 
       let predictedWinner: 'Home' | 'Draw' | 'Away' = 'Draw';
-      let maxProb = p.drawProbability || 0;
-      if (p.homeWinProbability > maxProb) { maxProb = p.homeWinProbability; predictedWinner = 'Home'; }
-      if ((p.awayWinProbability || 0) > maxProb) { predictedWinner = 'Away'; }
+      let maxProb = p.drawProbability ?? 0;
+      if ((p.homeWinProbability ?? 0) > maxProb) {
+        maxProb = p.homeWinProbability;
+        predictedWinner = 'Home';
+      }
+      if ((p.awayWinProbability ?? 0) > maxProb) {
+        predictedWinner = 'Away';
+      }
 
       return {
         id: `bt-${Date.now()}-${Math.random()}`,
@@ -561,9 +641,13 @@ Return ONLY valid JSON:
         actualAwayScore: matchData.awayScore,
         actualWinner,
         predictedWinner,
-        predictedProbabilities: { homeWin: p.homeWinProbability, draw: p.drawProbability || 0, awayWin: p.awayWinProbability || 0 },
+        predictedProbabilities: {
+          homeWin: p.homeWinProbability,
+          draw: p.drawProbability ?? 0,
+          awayWin: p.awayWinProbability ?? 0
+        },
         isCorrect: predictedWinner === actualWinner,
-        explanation: p.explanation
+        explanation: p.explanation ?? "Prediction completed"
       };
     } catch (e) {
       return {

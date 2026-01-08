@@ -102,13 +102,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Fetch weekly usage
   const fetchUsage = async () => {
+    if (!user) return 0;
+
     try {
       const { data, error } = await supabase.rpc('get_weekly_usage', {
-        user_id: user?.id,
+        user_id: user.id,
         action_type: null,
       });
 
-      if (error) throw error;
+      if (error) return 0;
       return data || 0;
     } catch (err) {
       console.error('Error fetching usage:', err);
@@ -121,7 +123,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const initializeAuth = async () => {
       try {
         // Get initial session
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.warn('Auth session error:', sessionError);
+        }
+
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
 
@@ -137,6 +144,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (err) {
         console.error('Error initializing auth:', err);
       } finally {
+        // Always set loading to false, even if there was an error
         setIsLoading(false);
       }
     };
@@ -146,6 +154,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
+        console.log('Auth state changed:', event, newSession?.user?.email);
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
