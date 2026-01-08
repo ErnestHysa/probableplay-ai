@@ -6,7 +6,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { BarChart3, TrendingUp, Target, Trophy, Zap } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { BarChart3, TrendingUp, Target, Trophy, Zap, Lock } from 'lucide-react';
 import { getHistoryRetentionDays } from '../lib/featureFlags';
 
 interface StatisticsViewProps {
@@ -14,7 +15,7 @@ interface StatisticsViewProps {
 }
 
 export const StatisticsView: React.FC<StatisticsViewProps> = ({ onNavigate }) => {
-  const { isPro, profile } = useAuth();
+  const { isPro, profile, isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
 
   // Mock statistics for now (will be calculated from real data)
@@ -50,6 +51,55 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({ onNavigate }) =>
 
   return (
     <div className="max-w-6xl mx-auto">
+      {/* Guest State - Not authenticated */}
+      {!isAuthenticated && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
+          <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+            <Lock size={32} className="text-amber-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Pro Feature: Advanced Statistics</h2>
+          <p className="text-slate-400 mb-6 max-w-md mx-auto">
+            Track your prediction accuracy over time, analyze performance by sport, and see detailed insights. Available exclusively for Pro subscribers.
+          </p>
+          <div className="flex justify-center gap-3">
+            <Link
+              to="/auth/signin"
+              className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors font-medium"
+            >
+              Sign In
+            </Link>
+            <Link
+              to="/pricing"
+              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
+            >
+              <Zap size={18} /> Upgrade to Pro
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Free User State - Authenticated but not Pro */}
+      {isAuthenticated && !isPro && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
+          <div className="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto mb-4">
+            <Zap size={32} className="text-orange-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Upgrade to Pro for Advanced Statistics</h2>
+          <p className="text-slate-400 mb-6 max-w-md mx-auto">
+            Track your prediction accuracy over time, analyze performance by sport, and see detailed insights about your betting patterns.
+          </p>
+          <Link
+            to="/pricing"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-lg transition-colors font-medium"
+          >
+            <Zap size={18} /> Upgrade to Pro
+          </Link>
+        </div>
+      )}
+
+      {/* Full Statistics Interface - Pro users only */}
+      {isAuthenticated && isPro && (
+      <>
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
@@ -197,6 +247,8 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({ onNavigate }) =>
             Go to Dashboard
           </button>
         </div>
+      )}
+      </>
       )}
     </div>
   );

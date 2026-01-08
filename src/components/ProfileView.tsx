@@ -6,7 +6,8 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Mail, Calendar, Trophy, Zap, LogOut, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { User, Mail, Calendar, Trophy, Zap, LogOut, ChevronRight, Lock } from 'lucide-react';
 
 interface ProfileViewProps {
   onNavigate?: (view: string) => void;
@@ -22,6 +23,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onNavigate }) => {
     detailedForecastsUsed,
     remainingWeeklyPredictions,
     refreshProfile,
+    isAuthenticated,
   } = useAuth();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -54,6 +56,35 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onNavigate }) => {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {/* Guest State */}
+      {!isAuthenticated && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
+          <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+            <Lock size={32} className="text-amber-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Sign In to View Your Profile</h2>
+          <p className="text-slate-400 mb-6 max-w-md mx-auto">
+            Manage your account settings, view your subscription status, and track your usage statistics.
+          </p>
+          <div className="flex justify-center gap-3">
+            <Link
+              to="/auth/signin"
+              className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors font-medium"
+            >
+              Sign In
+            </Link>
+            <Link
+              to="/auth/signup"
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-orange-500 hover:from-blue-600 hover:to-orange-600 text-white rounded-lg transition-colors font-medium"
+            >
+              Create Free Account
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {isAuthenticated && (
+      <>
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white mb-2">My Profile</h1>
@@ -210,6 +241,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onNavigate }) => {
             Upgrade Now
           </button>
         </div>
+      )}
+        </>
       )}
     </div>
   );
