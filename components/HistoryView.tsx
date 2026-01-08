@@ -3,13 +3,16 @@ import React, { useState, useEffect } from 'react';
 import { HistoryItem } from '../types';
 import { historyService } from '../services/historyService';
 import { geminiService } from '../services/geminiService';
-import { 
-  RefreshCw, CheckCircle, XCircle, MinusCircle, Clock, 
+import { useAuth } from '../src/contexts/AuthContext';
+import { Link } from 'react-router-dom';
+import {
+  RefreshCw, CheckCircle, XCircle, MinusCircle, Clock,
   ChevronDown, ChevronUp, Trophy, FileText, User, Goal,
-  GitCompare, ArrowRight, Trash2
+  GitCompare, ArrowRight, Trash2, Lock, History
 } from 'lucide-react';
 
 export const HistoryView: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -221,6 +224,35 @@ export const HistoryView: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
+      {/* Guest State */}
+      {!isAuthenticated && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
+          <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+            <Lock size={32} className="text-amber-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Sign In to View Your History</h2>
+          <p className="text-slate-400 mb-6 max-w-md mx-auto">
+            Track your prediction history, see which ones were correct, and improve your betting strategy over time.
+          </p>
+          <div className="flex justify-center gap-3">
+            <Link
+              to="/auth/signin"
+              className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors font-medium"
+            >
+              Sign In
+            </Link>
+            <Link
+              to="/auth/signup"
+              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-orange-500 hover:from-blue-600 hover:to-orange-600 text-white rounded-lg transition-colors font-medium"
+            >
+              Create Free Account
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {isAuthenticated && (
+        <>
       {showComparisonModal && renderComparisonModal()}
 
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
@@ -460,6 +492,8 @@ export const HistoryView: React.FC = () => {
              );
           })}
         </div>
+      )}
+        </>
       )}
     </div>
   );

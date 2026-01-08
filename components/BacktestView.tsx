@@ -2,9 +2,13 @@
 import React, { useState } from 'react';
 import { geminiService } from '../services/geminiService';
 import { BacktestResultItem } from '../types';
-import { AlertCircle, PlayCircle, Plus, Trash2, CheckCircle, XCircle, TrendingUp } from 'lucide-react';
+import { useAuth } from '../src/contexts/AuthContext';
+import { Link } from 'react-router-dom';
+import { AlertCircle, PlayCircle, Plus, Trash2, CheckCircle, XCircle, TrendingUp, Lock, Zap } from 'lucide-react';
 
 export const BacktestView: React.FC = () => {
+  const { isAuthenticated, isPro } = useAuth();
+
   // Form State
   const [sport, setSport] = useState('Football');
   const [league, setLeague] = useState('');
@@ -91,6 +95,55 @@ export const BacktestView: React.FC = () => {
 
   return (
     <div className="animate-fade-in space-y-8 max-w-4xl mx-auto">
+      {/* Guest State - Not authenticated */}
+      {!isAuthenticated && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
+          <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+            <Lock size={32} className="text-amber-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Pro Feature: Backtesting</h2>
+          <p className="text-slate-400 mb-6 max-w-md mx-auto">
+            Test our AI predictions against past matches to see how accurate they would have been. Available exclusively for Pro subscribers.
+          </p>
+          <div className="flex justify-center gap-3">
+            <Link
+              to="/auth/signin"
+              className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors font-medium"
+            >
+              Sign In
+            </Link>
+            <Link
+              to="/pricing"
+              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-lg transition-colors font-medium flex items-center gap-2"
+            >
+              <Zap size={18} /> Upgrade to Pro
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Free User State - Authenticated but not Pro */}
+      {isAuthenticated && !isPro && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center">
+          <div className="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto mb-4">
+            <Zap size={32} className="text-orange-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">Upgrade to Pro for Backtesting</h2>
+          <p className="text-slate-400 mb-6 max-w-md mx-auto">
+            Test our AI predictions against past matches to see how accurate they would have been. This advanced feature is exclusively for Pro subscribers.
+          </p>
+          <Link
+            to="/pricing"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-lg transition-colors font-medium"
+          >
+            <Zap size={18} /> Upgrade to Pro
+          </Link>
+        </div>
+      )}
+
+      {/* Full Backtest Interface - Pro users only */}
+      {isAuthenticated && isPro && (
+      <>
       <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-xl">
         <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
           <TrendingUp className="text-emerald-400" /> Backtesting Engine
@@ -277,6 +330,8 @@ export const BacktestView: React.FC = () => {
              </table>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
