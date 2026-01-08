@@ -18,7 +18,6 @@ import { PricingView } from './src/components/PricingView';
 import { StatisticsView } from './src/components/StatisticsView';
 import { SignIn } from './src/components/auth/SignIn';
 import { SignUp } from './src/components/auth/SignUp';
-import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { Match, PredictionResult, ViewState, SportFilter, DetailedForecastResult } from './types';
 import { geminiService } from './services/geminiService';
 import { historyService } from './services/historyService';
@@ -43,91 +42,40 @@ const AppContent: React.FC = () => {
   const [predictionError, setPredictionError] = useState<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState(true);
 
+  // Navigation handlers
+  const handleNavigate = (newView: ViewState) => {
+    setView(newView);
+    // Clear selected match when switching views
+    if (newView !== ViewState.DETAIL && newView !== ViewState.DETAILED_FORECAST) {
+      setSelectedMatch(null);
+    }
+  };
+
+  const handleSelectMatch = (match: Match) => {
+    setSelectedMatch(match);
+    setView(ViewState.DETAIL);
+    setPrediction(null);
+    setPredictionError(null);
+  };
+
+  const handleSelectDetailedMatch = (match: Match) => {
+    setSelectedMatch(match);
+    setDetailedForecast(null);
+    setPredictionError(null);
+  };
+
+  const handleBack = () => {
+    setSelectedMatch(null);
+    setPrediction(null);
+    setDetailedForecast(null);
+    setPredictionError(null);
+  };
+
   useEffect(() => {
     if (!geminiService.isConfigured) {
       setHasApiKey(false);
     }
   }, []);
-
-  // Flow 1: Standard Prediction (Dashboard Tab)
-  const handleSelectMatch = async (match: Match) => {
-    setSelectedMatch(match);
-    setView(ViewState.DETAIL);
-    setPrediction(null);
-    setPredictionError(null);
-    setIsPredicting(true);
-
-    try {
-      if (!geminiService.isConfigured) throw new Error("API Key missing");
-
-      const result = await geminiService.predictMatch(match);
-      setPrediction(result);
-
-      // Save to history (localStorage for now, will migrate to Supabase)
-      historyService.savePrediction(match, result, 'STANDARD');
-
-      // Log usage for Supabase
-      if (isAuthenticated) {
-        await logUsage('standard_prediction');
-        await refreshProfile();
-      }
-
-    } catch (err: any) {
-      console.error(err);
-      setPredictionError(err.message || "Failed to generate prediction.");
-    } finally {
-      setIsPredicting(false);
-    }
-  };
-
-  // Flow 2: Detailed Forecast (Detailed Forecast Tab)
-  const handleSelectDetailedMatch = async (match: Match) => {
-    setSelectedMatch(match);
-    if (view !== ViewState.DETAILED_FORECAST) setView(ViewState.DETAILED_FORECAST);
-
-    setDetailedForecast(null);
-    setPredictionError(null);
-    setIsPredicting(true);
-
-    try {
-      if (!geminiService.isConfigured) throw new Error("API Key missing");
-
-      const result = await geminiService.getDetailedForecast(match);
-      setDetailedForecast(result);
-
-      // Save to history
-      historyService.savePrediction(match, result, 'DETAILED');
-
-      // Log usage for Supabase
-      if (isAuthenticated) {
-        await logUsage('detailed_prediction');
-        await refreshProfile();
-      }
-
-    } catch (err: any) {
-      console.error(err);
-      setPredictionError(err.message || "Failed to generate detailed forecast.");
-    } finally {
-      setIsPredicting(false);
-    }
-  };
-
-  const handleBack = () => {
-    if (view === ViewState.DETAIL) {
-      setView(ViewState.DASHBOARD);
-    } else if (view === ViewState.DETAILED_FORECAST) {
-      setSelectedMatch(null);
-    }
-    setPrediction(null);
-    setDetailedForecast(null);
-  };
-
-  const handleNavigate = (newView: ViewState) => {
-    setView(newView);
-    setSelectedMatch(null);
-    setPrediction(null);
-    setDetailedForecast(null);
-  };
 
   // Loading state
   if (isLoading) {
@@ -217,9 +165,7 @@ const AppContent: React.FC = () => {
 
       {/* BACKTEST VIEW */}
       {view === ViewState.BACKTEST && (
-        <ProtectedRoute requirePro={true}>
-          <BacktestView />
-        </ProtectedRoute>
+        <BacktestView />
       )}
 
       {/* PROFILE VIEW */}
@@ -234,9 +180,7 @@ const AppContent: React.FC = () => {
 
       {/* STATISTICS VIEW */}
       {view === ViewState.STATISTICS && (
-        <ProtectedRoute requirePro={true}>
-          <StatisticsView onNavigate={handleNavigate} />
-        </ProtectedRoute>
+        <StatisticsView onNavigate={handleNavigate} />
       )}
     </Layout>
   );
@@ -244,6 +188,8 @@ const AppContent: React.FC = () => {
 
 // Root App with providers
 const App: React.FC = () => {
+  console.log('App component rendering...');
+
   return (
     <BrowserRouter>
       <AuthProvider>
@@ -252,11 +198,8 @@ const App: React.FC = () => {
           <Route path="/auth/signin" element={<SignIn />} />
           <Route path="/auth/signup" element={<SignUp />} />
 
-          {/* Protected main app */}
-          <Route path="/*" element={<AppContent />} />
-
-          {/* Redirect root to main app */}
-          <Route path="/" element={<Navigate to="/" replace />} />
+          {/* Main app - catch all routes */}
+          <Route path="*" element={<AppContent />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
