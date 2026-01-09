@@ -63,17 +63,36 @@ export async function createCheckoutSession(params: CheckoutSessionParams): Prom
 
 /**
  * Create Stripe customer portal session
- * Note: This requires a separate edge function
+ * Allows users to manage their subscription (update payment method, cancel, etc.)
  */
-export async function createCustomerPortalSession(): Promise<{ url: string }> {
+export async function createCustomerPortalSession(returnUrl?: string): Promise<{ url: string }> {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     throw new Error('User must be authenticated');
   }
 
-  // For now, return a placeholder - you'll need to create a portal endpoint
-  throw new Error('Customer portal not yet implemented. Please contact support to manage subscription.');
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  const response = await fetch('/api/portal', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    body: JSON.stringify({
+      userId: user.id,
+      returnUrl,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to create portal session');
+  }
+
+  return response.json();
 }
 
 /**
