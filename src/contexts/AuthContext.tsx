@@ -25,6 +25,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isPro: boolean;
+  isEmailVerified: boolean;
 
   // Usage tracking
   weeklyPredictionsUsed: number;
@@ -34,9 +35,16 @@ interface AuthContextType {
 
   // Auth methods
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName?: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName?: string) => Promise<{ needsVerification: boolean }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
+
+  // Email verification
+  resendVerificationEmail: () => Promise<void>;
+
+  // Password reset
+  requestPasswordReset: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
 
   // Refresh methods
   refreshProfile: () => Promise<void>;
@@ -65,6 +73,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isPro, setIsPro] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
 
   // Usage state
   const [weeklyPredictionsUsed, setWeeklyPredictionsUsed] = useState(0);
@@ -134,6 +143,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
+        setIsEmailVerified(initialSession?.user?.email_confirmed_at ? true : false);
 
         if (initialSession?.user) {
           const userProfile = await fetchProfile(initialSession.user.id);
@@ -160,6 +170,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('Auth state changed:', event, newSession?.user?.email);
         setSession(newSession);
         setUser(newSession?.user ?? null);
+        setIsEmailVerified(newSession?.user?.email_confirmed_at ? true : false);
 
         if (newSession?.user) {
           const userProfile = await fetchProfile(newSession.user.id);
@@ -172,6 +183,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } else {
           setProfile(null);
           setIsPro(false);
+          setIsEmailVerified(false);
           setWeeklyPredictionsUsed(0);
           setDetailedForecastsUsed(0);
         }
@@ -208,6 +220,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         data: {
           full_name: fullName || '',
         },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -215,7 +228,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       throw error;
     }
 
-    return data;
+    // Return whether email verification is needed
+    return {
+      needsVerification: !data.session && data.user?.email_confirmed_at === null,
+    };
   };
 
   // Sign out
@@ -225,8 +241,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setSession(null);
     setProfile(null);
     setIsPro(false);
+    setIsEmailVerified(false);
     setWeeklyPredictionsUsed(0);
     setDetailedForecastsUsed(0);
+  };
+
+  // Resend verification email
+  const resendVerificationEmail = async () => {
+    if (!user) {
+      throw new Error('No user logged in');
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: user.email!,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      throw error;
+    }
+  };
+
+  // Request password reset
+  const requestPasswordReset = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+
+    if (error) {
+      throw error;
+    }
+  };
+
+  // Update password (for authenticated users)
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      throw error;
+    }
   };
 
   // Update profile
@@ -319,6 +377,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     isAuthenticated: !!user,
     isPro,
+    isEmailVerified,
     weeklyPredictionsUsed,
     detailedForecastsUsed,
     remainingWeeklyPredictions,
@@ -327,6 +386,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signUp,
     signOut,
     updateProfile,
+    resendVerificationEmail,
+    requestPasswordReset,
+    updatePassword,
     refreshProfile,
     logUsage,
   };
