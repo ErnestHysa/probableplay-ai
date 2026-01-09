@@ -1,5 +1,6 @@
 
 import { HistoryItem, Match, PredictionResult, DetailedForecastResult, MatchResult, PredictionType } from "../types";
+import { storePrediction, fetchPredictionHistory, canMakePrediction, incrementTrialUsage } from "./predictionStorageService";
 
 const HISTORY_KEY = 'probable_play_history_v2';
 
@@ -14,16 +15,16 @@ export const historyService = {
     }
   },
 
-  savePrediction: (
-    match: Match, 
-    data: PredictionResult | DetailedForecastResult, 
+  savePrediction: async (
+    match: Match,
+    data: PredictionResult | DetailedForecastResult,
     type: PredictionType
   ) => {
     const history = historyService.getHistory();
-    
+
     // User requested to APPEND history rather than replace, to allow comparing different runs.
     // We create a unique ID every time.
-    
+
     const newItem: HistoryItem = {
       id: crypto.randomUUID ? crypto.randomUUID() : `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       match,
@@ -43,13 +44,26 @@ export const historyService = {
 
     // Add to beginning of list (Newest first)
     history.unshift(newItem);
-    
+
     // Optional: Limit history size to prevent localStorage overflow (e.g., keep last 50)
     if (history.length > 50) {
         history.pop();
     }
-    
+
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+
+    // Also store in Supabase for authenticated users
+    try {
+      const result = await storePrediction(match, data, type);
+      if (result.success) {
+        // Increment trial usage for detailed forecasts (free tier)
+        if (type === 'DETAILED') {
+          await incrementTrialUsage();
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to sync prediction to database:', error);
+    }
   },
 
   updateResult: (matchId: string, result: MatchResult) => {
@@ -78,3 +92,6 @@ export const historyService = {
       return history;
   }
 };
+
+// Export the usage tracking functions for use in components
+export { canMakePrediction, getUserUsageStats, fetchPredictionHistory, incrementTrialUsage } from './predictionStorageService';

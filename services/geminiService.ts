@@ -40,12 +40,13 @@ export class GeminiService {
     // In Vite, env vars must start with VITE_ and are accessed via import.meta.env
     this.apiKey = (import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY) || '';
     this.ai = new GoogleGenAI({ apiKey: this.apiKey });
-    // Use edge function in production if available
-    this.useEdgeFunction = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    // Use edge function in production if available (check if we're not in local development)
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    this.useEdgeFunction = hostname !== 'localhost' && hostname !== '127.0.0.1';
   }
 
   get isConfigured() {
-    return !!this.apiKey;
+    return !!this.apiKey || this.useEdgeFunction;
   }
 
   /**
@@ -68,11 +69,42 @@ export class GeminiService {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Edge function error');
+      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      throw new Error(errorData.message || 'Edge function error');
     }
 
-    return response.json();
+    const data = await response.json();
+
+    // Transform edge function response to match our types
+    if (type === 'standard') {
+      return {
+        matchId: data.matchId || match.id,
+        probabilities: {
+          homeWin: data.probabilities.homeWin,
+          draw: data.probabilities.draw,
+          awayWin: data.probabilities.awayWin
+        },
+        summary: data.summary,
+        detailedAnalysis: data.detailedAnalysis,
+        keyFactors: data.keyFactors,
+        sources: data.sources || [],
+        lastUpdated: data.lastUpdated
+      } as PredictionResult;
+    }
+
+    return {
+      matchId: data.matchId || match.id,
+      predictedScore: data.predictedScore,
+      totalGoals: data.totalGoals,
+      firstTeamToScore: data.firstTeamToScore,
+      halfTimeWinner: data.halfTimeWinner,
+      secondHalfWinner: data.secondHalfWinner,
+      likelyScorers: data.likelyScorers,
+      scoringMethodProbabilities: data.scoringMethodProbabilities,
+      redCards: data.redCards,
+      confidenceScore: data.confidenceScore,
+      reasoning: data.reasoning
+    } as DetailedForecastResult;
   }
 
   /**
@@ -309,11 +341,14 @@ export class GeminiService {
    * Uses edge function in production for API key security
    */
   async predictMatch(match: Match): Promise<PredictionResult> {
-    if (!this.isConfigured) throw new Error("API Key missing");
-
     // Use edge function in production
     if (this.shouldUseEdgeFunction()) {
       return this.callEdgeFunction(match, 'standard') as Promise<PredictionResult>;
+    }
+
+    // Check for local API key
+    if (!this.apiKey) {
+      throw new Error("API Key missing. Please configure GEMINI_API_KEY for local development.");
     }
 
     const today = getTodayString();
@@ -400,11 +435,14 @@ Return ONLY valid JSON:
    * Uses edge function in production for API key security
    */
   async getDetailedForecast(match: Match): Promise<DetailedForecastResult> {
-    if (!this.isConfigured) throw new Error("API Key missing");
-
     // Use edge function in production
     if (this.shouldUseEdgeFunction()) {
       return this.callEdgeFunction(match, 'detailed') as Promise<DetailedForecastResult>;
+    }
+
+    // Check for local API key
+    if (!this.apiKey) {
+      throw new Error("API Key missing. Please configure GEMINI_API_KEY for local development.");
     }
 
     const today = getTodayString();
