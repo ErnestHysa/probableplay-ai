@@ -40,6 +40,9 @@ interface AuthContextType {
 
   // Refresh methods
   refreshProfile: () => Promise<void>;
+
+  // Usage logging
+  logUsage: (action: 'standard_prediction' | 'detailed_prediction' | 'backtest') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -271,6 +274,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setWeeklyPredictionsUsed(usage);
   };
 
+  // Log usage action and refresh stats
+  const logUsage = async (action: 'standard_prediction' | 'detailed_prediction' | 'backtest') => {
+    if (!user) return;
+
+    try {
+      // Log the usage action using the database function
+      const { error } = await supabase.rpc('log_usage', {
+        p_action: action,
+        p_user_id: user.id,
+      });
+
+      if (error) {
+        console.warn('Failed to log usage:', error);
+      }
+
+      // For detailed forecasts, also increment trial usage
+      if (action === 'detailed_prediction' && !isPro) {
+        const { error: incrementError } = await supabase.rpc('increment_trial_usage', {
+          p_user_id: user.id,
+        });
+
+        if (!incrementError) {
+          // Refresh profile to get updated trial count
+          const userProfile = await fetchProfile(user.id);
+          if (userProfile) {
+            setDetailedForecastsUsed(userProfile.trial_detailed_forecasts_used || 0);
+          }
+        }
+      }
+
+      // Refresh usage stats
+      const usage = await fetchUsage();
+      setWeeklyPredictionsUsed(usage);
+    } catch (err) {
+      console.error('Error logging usage:', err);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     session,
@@ -287,6 +328,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signOut,
     updateProfile,
     refreshProfile,
+    logUsage,
   };
 
   return (
