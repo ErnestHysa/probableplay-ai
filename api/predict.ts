@@ -8,9 +8,6 @@
  * - GEMINI_API_KEY: Your Google Gemini API key
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-
-// Types for the request and response
 interface PredictionRequest {
   match: {
     id: string;
@@ -56,7 +53,7 @@ interface DetailedForecastResponse {
   reasoning: string;
 }
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || '';
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
 // Helper to get today's date
@@ -261,21 +258,40 @@ async function callGemini(prompt: string, temperature = 0.1): Promise<string> {
   return text;
 }
 
-// Main handler
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  return NextResponse.json({
-    error: 'Method not allowed. Use POST instead.',
-    message: 'This endpoint requires a POST request with prediction parameters.'
-  }, { status: 405 });
-}
+// Main handler for Vercel Edge Functions
+export default async function handler(request: Request): Promise<Response> {
+  // Handle CORS preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      },
+    });
+  }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+  if (request.method === 'GET') {
+    return Response.json({
+      error: 'Method not allowed. Use POST instead.',
+      message: 'This endpoint requires a POST request with prediction parameters.'
+    }, { status: 405 });
+  }
+
+  if (request.method !== 'POST') {
+    return Response.json({
+      error: 'Method not allowed',
+      message: 'Only POST requests are supported'
+    }, { status: 405 });
+  }
+
   try {
     // Parse request body
     const body: PredictionRequest = await request.json();
 
     if (!body.match || !body.match.id || !body.match.homeTeam || !body.match.awayTeam) {
-      return NextResponse.json({
+      return Response.json({
         error: 'Invalid request',
         message: 'Missing required match data'
       }, { status: 400 });
@@ -311,7 +327,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         rawProbabilities.awayWin = validation.normalized.awayWin;
       }
 
-      return NextResponse.json({
+      return Response.json({
         matchId: match.id,
         probabilities: rawProbabilities,
         summary: probData.summary ?? "Analysis based on team performance patterns.",
@@ -336,7 +352,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const validMethods = ["Shot", "Header", "Penalty", "Free Kick", "Own Goal"] as const;
 
-    return NextResponse.json({
+    return Response.json({
       matchId: match.id,
       predictedScore,
       totalGoals: String(detailedData.totalGoals ?? "N/A"),
@@ -364,14 +380,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch (error) {
     console.error('Prediction error:', error);
 
-    return NextResponse.json({
+    return Response.json({
       error: 'Prediction failed',
       message: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 }
 
-// Edge function config
+// Edge function config for Vercel
 export const config = {
   runtime: 'edge',
   regions: ['iad1'], // US East
