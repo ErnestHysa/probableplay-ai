@@ -1,17 +1,18 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Layout } from './components/Layout';
 import { MatchList } from './components/MatchList';
-import { PredictionView } from './components/PredictionView';
-import { DetailedForecastView } from './components/DetailedForecastView';
-import { HistoryView } from './components/HistoryView';
-import { BacktestView } from './components/BacktestView';
 import { Filters } from './components/Filters';
 import { DashboardSummary } from './components/dashboard/DashboardSummary';
-import { Match, PredictionResult, ViewState, SportFilter, DetailedForecastResult, ExtendedFilters, AISnapshot } from './types';
+import { Match, PredictionResult, ViewState, DetailedForecastResult, ExtendedFilters, AISnapshot } from './types';
 import { geminiService } from './services/geminiService';
 import { historyService } from './services/historyService';
 import { PLACEHOLDER_MATCHES } from './constants';
+
+const PredictionView = lazy(() => import('./components/PredictionView').then(m => ({ default: m.PredictionView })));
+const DetailedForecastView = lazy(() => import('./components/DetailedForecastView').then(m => ({ default: m.DetailedForecastView })));
+const HistoryView = lazy(() => import('./components/HistoryView').then(m => ({ default: m.HistoryView })));
+const BacktestView = lazy(() => import('./components/BacktestView').then(m => ({ default: m.BacktestView })));
 
 // Cache key for matches
 const MATCHES_CACHE_KEY = 'probable_play_matches_cache_v2';
@@ -26,7 +27,6 @@ export const App: React.FC = () => {
   const [detailedForecast, setDetailedForecast] = useState<DetailedForecastResult | null>(null);
   
   // UI State
-  const [activeSport, setActiveSport] = useState<SportFilter>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<ExtendedFilters>({
     sport: 'All',
@@ -50,6 +50,7 @@ export const App: React.FC = () => {
     if (!geminiService.isConfigured) {
       setHasApiKey(false);
       setMatches(PLACEHOLDER_MATCHES);
+      setIsLoadingMatches(false);
     } else {
       initializeMatches();
     }
@@ -234,22 +235,17 @@ export const App: React.FC = () => {
     setDetailedForecast(null);
   };
 
-  if (!hasApiKey) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="bg-slate-800 p-8 rounded-xl max-w-md text-center border border-red-500/50">
-          <h2 className="text-2xl font-bold text-white mb-4">Configuration Error</h2>
-          <p className="text-slate-300 mb-4">API Key Missing.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <Layout 
       onNavigate={handleNavigate}
       currentView={view}
     >
+      {!hasApiKey && (
+        <div className="mb-6 bg-amber-500/10 border border-amber-400/30 p-4 rounded-xl text-amber-200 text-sm">
+          Gemini API key is not configured. You can browse the app in demo mode, but live AI predictions/backtests require setting <code className="font-mono text-amber-100">GEMINI_API_KEY</code>.
+        </div>
+      )}
+
       {/* 1. DASHBOARD VIEW */}
       {view === ViewState.DASHBOARD && (
         <>
@@ -277,6 +273,7 @@ export const App: React.FC = () => {
               searchQuery={searchQuery}
               onRefresh={fetchMatches}
               aiSnapshot={aiSnapshot}
+              selectionDisabledReason={!hasApiKey ? 'Set GEMINI_API_KEY to generate live predictions.' : undefined}
             />
           </div>
         </>
@@ -284,13 +281,15 @@ export const App: React.FC = () => {
 
       {/* 2. PREDICTION DETAIL VIEW (Sub-view of Dashboard) */}
       {view === ViewState.DETAIL && selectedMatch && (
-        <PredictionView 
-          match={selectedMatch}
-          prediction={prediction}
-          isLoading={isPredicting}
-          error={predictionError}
-          onBack={handleBack}
-        />
+        <Suspense fallback={<div className="text-slate-400">Loading prediction view...</div>}>
+          <PredictionView 
+            match={selectedMatch}
+            prediction={prediction}
+            isLoading={isPredicting}
+            error={predictionError}
+            onBack={handleBack}
+          />
+        </Suspense>
       )}
 
       {/* 3. DETAILED FORECAST TAB */}
@@ -319,29 +318,36 @@ export const App: React.FC = () => {
                         filters={filters}
                         searchQuery={searchQuery}
                         onRefresh={fetchMatches}
+                        selectionDisabledReason={!hasApiKey ? 'Set GEMINI_API_KEY to generate detailed forecasts.' : undefined}
                     />
                 </>
             ) : (
                 // Show the specific detailed forecast view
-                <DetailedForecastView 
-                    match={selectedMatch}
-                    forecast={detailedForecast}
-                    isLoading={isPredicting}
-                    error={predictionError}
-                    onBack={handleBack}
-                />
+                <Suspense fallback={<div className="text-slate-400">Loading detailed forecast...</div>}>
+                  <DetailedForecastView 
+                      match={selectedMatch}
+                      forecast={detailedForecast}
+                      isLoading={isPredicting}
+                      error={predictionError}
+                      onBack={handleBack}
+                  />
+                </Suspense>
             )}
         </>
       )}
 
       {/* 4. HISTORY VIEW */}
       {view === ViewState.HISTORY && (
-        <HistoryView />
+        <Suspense fallback={<div className="text-slate-400">Loading history...</div>}>
+          <HistoryView />
+        </Suspense>
       )}
 
       {/* 5. BACKTEST VIEW */}
       {view === ViewState.BACKTEST && (
-        <BacktestView />
+        <Suspense fallback={<div className="text-slate-400">Loading backtest lab...</div>}>
+          <BacktestView />
+        </Suspense>
       )}
     </Layout>
   );

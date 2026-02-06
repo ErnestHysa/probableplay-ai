@@ -12,6 +12,7 @@ interface MatchListProps {
   searchQuery: string;
   onRefresh: () => void;
   aiSnapshot?: AISnapshot;
+  selectionDisabledReason?: string;
 }
 
 export const MatchList: React.FC<MatchListProps> = ({ 
@@ -22,7 +23,8 @@ export const MatchList: React.FC<MatchListProps> = ({
   filters,
   searchQuery,
   onRefresh,
-  aiSnapshot
+  aiSnapshot,
+  selectionDisabledReason
 }) => {
   
   const filteredMatches = useMemo(() => {
@@ -170,8 +172,16 @@ export const MatchList: React.FC<MatchListProps> = ({
           {filteredMatches.map((match) => (
             <div 
               key={match.id}
-              onClick={() => onSelectMatch(match)}
-              className="group bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-emerald-500/50 rounded-xl p-5 cursor-pointer transition-all duration-200 relative overflow-hidden"
+              onClick={() => {
+                if (!selectionDisabledReason) onSelectMatch(match);
+              }}
+              aria-disabled={!!selectionDisabledReason}
+              title={selectionDisabledReason || 'Open match prediction'}
+              className={`group border rounded-xl p-5 transition-all duration-200 relative overflow-hidden ${
+                selectionDisabledReason
+                  ? 'bg-slate-800/40 border-slate-700 cursor-not-allowed opacity-70'
+                  : 'bg-slate-800/50 hover:bg-slate-800 border-slate-700 hover:border-emerald-500/50 cursor-pointer'
+              }`}
             >
               {/* Hover Glow Effect */}
               <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-12 -mt-12 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -291,8 +301,12 @@ export const MatchList: React.FC<MatchListProps> = ({
                 )}
               </div>
 
-              <div className="mt-4 flex items-center text-emerald-500 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                Get AI Prediction <ChevronRight size={16} className="ml-1" />
+              <div className="mt-4 flex items-center text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
+                {selectionDisabledReason ? (
+                  <span className="text-amber-400">API key required for live prediction</span>
+                ) : (
+                  <span className="text-emerald-500 flex items-center">Get AI Prediction <ChevronRight size={16} className="ml-1" /></span>
+                )}
               </div>
             </div>
           ))}
