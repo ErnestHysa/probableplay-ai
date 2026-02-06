@@ -31,6 +31,11 @@ export const BacktestView: React.FC = () => {
   };
 
   const handleRunBacktest = async () => {
+    if (!geminiService.isConfigured) {
+      setError("API key is missing. Add GEMINI_API_KEY to run backtesting.");
+      return;
+    }
+
     if (selectedTeams.length === 0) {
       setError("Please add at least one team.");
       return;
@@ -149,7 +154,11 @@ export const BacktestView: React.FC = () => {
                 min="1"
                 max="5"
                 value={matchCount}
-                onChange={(e) => setMatchCount(parseInt(e.target.value))}
+                onChange={(e) => {
+                  const parsed = Number.parseInt(e.target.value, 10);
+                  const safeValue = Number.isFinite(parsed) ? Math.min(5, Math.max(1, parsed)) : 1;
+                  setMatchCount(safeValue);
+                }}
                 className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-2.5 focus:ring-2 focus:ring-emerald-500"
               />
               <p className="text-xs text-slate-500 mt-1">Max 5 matches to preserve API limits.</p>

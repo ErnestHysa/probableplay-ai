@@ -1,6 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { Match, PredictionResult, MatchResult, HistoryItem, BacktestResultItem, DetailedForecastResult } from "../types";
+import { appLogger } from "../utils/logger";
 
 // Helper to get today's date in readable format
 const getTodayString = () => {
@@ -18,6 +19,61 @@ export class GeminiService {
 
   get isConfigured() {
     return !!this.apiKey;
+  }
+
+  private normalizeProbability(value: unknown): number {
+    const parsed = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.min(1, parsed));
+  }
+
+  private buildNormalizedProbabilities(raw: {
+    homeWinProbability?: unknown;
+    drawProbability?: unknown;
+    awayWinProbability?: unknown;
+  }) {
+    let homeWin = this.normalizeProbability(raw.homeWinProbability);
+    let draw = this.normalizeProbability(raw.drawProbability);
+    let awayWin = this.normalizeProbability(raw.awayWinProbability);
+
+    const sum = homeWin + draw + awayWin;
+    if (sum <= 0) {
+      return { homeWin: 0.34, draw: 0.32, awayWin: 0.34 };
+    }
+
+    homeWin = homeWin / sum;
+    draw = draw / sum;
+    awayWin = awayWin / sum;
+
+    return { homeWin, draw, awayWin };
+  }
+
+  private normalizePeriodWinner(value: unknown): 'Home' | 'Draw' | 'Away' {
+    if (value === 'Home' || value === 'Draw' || value === 'Away') {
+      return value;
+    }
+    return 'Draw';
+  }
+
+  private normalizePercentString(value: unknown): string {
+    if (typeof value === 'string' && /%/.test(value)) return value;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return '0%';
+    return `${Math.max(0, Math.min(100, Math.round(numeric)))}%`;
+  }
+
+  private normalizeBacktestCandidate(row: any): { date: string; homeTeam: string; awayTeam: string; homeScore: number; awayScore: number } | null {
+    if (!row || !row.date || !row.homeTeam || !row.awayTeam) return null;
+    const homeScore = Number(row.homeScore);
+    const awayScore = Number(row.awayScore);
+    if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore)) return null;
+    return {
+      date: String(row.date),
+      homeTeam: String(row.homeTeam),
+      awayTeam: String(row.awayTeam),
+      homeScore,
+      awayScore
+    };
   }
 
   /**
@@ -57,7 +113,7 @@ export class GeminiService {
     const finalAttempt = tryParse(cleaned);
     if (finalAttempt) return finalAttempt;
 
-    console.error("Failed to parse JSON response. Raw text:", text);
+    appLogger.error("Failed to parse JSON response", { rawText: text });
     throw new Error("Invalid JSON response from AI");
   }
 
@@ -110,10 +166,16 @@ export class GeminiService {
       const matchesData = this.cleanAndParseJson(text);
       
       if (Array.isArray(matchesData)) {
-        return matchesData.map((m: any) => {
+        return matchesData
+        .filter((m: any) => m?.homeTeam && m?.awayTeam && m?.startTime)
+        .map((m: any) => {
           const slug = `${m.homeTeam}-${m.awayTeam}-${m.startTime}`.toLowerCase().replace(/[^a-z0-9]/g, '');
           return {
-            ...m,
+            sport: m.sport || 'Football',
+            league: m.league || 'Unknown League',
+            homeTeam: m.homeTeam,
+            awayTeam: m.awayTeam,
+            startTime: m.startTime,
             id: slug || `gm-${Date.now()}-${Math.random()}`,
             status: 'Scheduled'
           };
@@ -122,7 +184,7 @@ export class GeminiService {
       return [];
 
     } catch (error) {
-      console.error("Failed to fetch matches:", error);
+      appLogger.error("Failed to fetch matches", error);
       return [];
     }
   }
@@ -181,22 +243,20 @@ export class GeminiService {
         });
       }
 
+      const probabilities = this.buildNormalizedProbabilities(data);
+
       return {
         matchId: match.id,
-        probabilities: {
-          homeWin: data.homeWinProbability,
-          draw: data.drawProbability,
-          awayWin: data.awayWinProbability
-        },
-        summary: data.summary,
-        detailedAnalysis: data.detailedAnalysis,
-        keyFactors: data.keyFactors,
+        probabilities,
+        summary: typeof data.summary === 'string' ? data.summary : 'Prediction generated from available data.',
+        detailedAnalysis: typeof data.detailedAnalysis === 'string' ? data.detailedAnalysis : 'Detailed analysis unavailable.',
+        keyFactors: Array.isArray(data.keyFactors) ? data.keyFactors : [],
         sources: sources,
         lastUpdated: new Date().toISOString()
       };
 
     } catch (error) {
-      console.error("Prediction failed:", error);
+      appLogger.error("Prediction failed", error);
       throw error;
     }
   }
@@ -280,13 +340,24 @@ export class GeminiService {
         predictedScore: data.predictedScore || "N/A",
         totalGoals: data.totalGoals || "N/A",
         firstTeamToScore: data.firstTeamToScore || "Unknown",
-        halfTimeWinner: data.halfTimeWinner || "Draw",
-        secondHalfWinner: data.secondHalfWinner || "Draw",
+        halfTimeWinner: this.normalizePeriodWinner(data.halfTimeWinner),
+        secondHalfWinner: this.normalizePeriodWinner(data.secondHalfWinner),
         
-        likelyScorers: Array.isArray(data.likelyScorers) ? data.likelyScorers : [],
+        likelyScorers: Array.isArray(data.likelyScorers)
+          ? data.likelyScorers.filter((s: any) => s?.player && s?.team).slice(0, 5).map((s: any) => ({
+              player: String(s.player),
+              team: String(s.team),
+              method: typeof s.method === 'string' ? s.method : 'Shot',
+              likelihood: this.normalizePercentString(s.likelihood)
+            }))
+          : [],
         
-        scoringMethodProbabilities: data.scoringMethodProbabilities || {
-            penalty: "0%", freeKick: "0%", cornerHeader: "0%", ownGoal: "0%", outsideBox: "0%"
+        scoringMethodProbabilities: {
+          penalty: this.normalizePercentString(data.scoringMethodProbabilities?.penalty),
+          freeKick: this.normalizePercentString(data.scoringMethodProbabilities?.freeKick),
+          cornerHeader: this.normalizePercentString(data.scoringMethodProbabilities?.cornerHeader),
+          ownGoal: this.normalizePercentString(data.scoringMethodProbabilities?.ownGoal),
+          outsideBox: this.normalizePercentString(data.scoringMethodProbabilities?.outsideBox)
         },
 
         redCards: data.redCards || "0 (90%)",
@@ -294,7 +365,7 @@ export class GeminiService {
         reasoning: data.reasoning || "Based on recent statistics."
       };
     } catch (error) {
-      console.error("Detailed forecast failed:", error);
+      appLogger.error("Detailed forecast failed", error);
       throw error;
     }
   }
@@ -348,7 +419,7 @@ export class GeminiService {
       return resultMap;
 
     } catch (error) {
-      console.error("Failed to fetch results:", error);
+      appLogger.error("Failed to fetch results", error);
       return new Map();
     }
   }
@@ -372,8 +443,14 @@ export class GeminiService {
         config: { tools: [{ googleSearch: {} }] }
       });
       const data = this.cleanAndParseJson(response.text);
-      return Array.isArray(data) ? data : [];
-    } catch (e) { return []; }
+      if (!Array.isArray(data)) return [];
+      return data
+        .map((item) => this.normalizeBacktestCandidate(item))
+        .filter((item): item is { date: string; homeTeam: string; awayTeam: string; homeScore: number; awayScore: number } => !!item);
+    } catch (e) {
+      appLogger.warn('Failed to fetch backtest candidates', e);
+      return [];
+    }
   }
 
   async runBacktestPrediction(matchData: any): Promise<BacktestResultItem> {
@@ -401,10 +478,12 @@ export class GeminiService {
       if (matchData.homeScore > matchData.awayScore) actualWinner = 'Home';
       if (matchData.awayScore > matchData.homeScore) actualWinner = 'Away';
 
+      const normalized = this.buildNormalizedProbabilities(p);
+
       let predictedWinner: 'Home' | 'Draw' | 'Away' = 'Draw';
-      let maxProb = p.drawProbability || 0;
-      if (p.homeWinProbability > maxProb) { maxProb = p.homeWinProbability; predictedWinner = 'Home'; }
-      if ((p.awayWinProbability || 0) > maxProb) { predictedWinner = 'Away'; }
+      let maxProb = normalized.draw;
+      if (normalized.homeWin > maxProb) { maxProb = normalized.homeWin; predictedWinner = 'Home'; }
+      if (normalized.awayWin > maxProb) { predictedWinner = 'Away'; }
 
       return {
         id: `bt-${Date.now()}-${Math.random()}`,
@@ -415,11 +494,12 @@ export class GeminiService {
         actualAwayScore: matchData.awayScore,
         actualWinner,
         predictedWinner,
-        predictedProbabilities: { homeWin: p.homeWinProbability, draw: p.drawProbability || 0, awayWin: p.awayWinProbability || 0 },
+        predictedProbabilities: normalized,
         isCorrect: predictedWinner === actualWinner,
-        explanation: p.explanation
+        explanation: typeof p.explanation === 'string' ? p.explanation : 'Prediction generated from historical simulation inputs.'
       };
     } catch (e) {
+      appLogger.warn('Backtest prediction failed for candidate', { matchData, error: e });
       return {
         id: `err-${Date.now()}`, date: matchData.date, homeTeam: matchData.homeTeam, awayTeam: matchData.awayTeam,
         actualHomeScore: 0, actualAwayScore: 0, actualWinner: 'Draw', predictedWinner: 'Draw',
